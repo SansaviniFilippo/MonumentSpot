@@ -130,7 +130,7 @@ export function renderHotspot(match, onClick) {
 
   // Insert tap icon image served by frontend only
   const img = document.createElement('img');
-  img.src = 'images/tap.webp';
+  img.src = 'images/new_tap.png';
   img.alt = '';
   img.draggable = false;
   hs.appendChild(img);
