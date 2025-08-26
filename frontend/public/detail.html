@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Artwork Details</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles/artwork_detail.css" />
+</head>
+<body>
+  <header class="topbar" role="banner">
+    <button class="back-btn" id="goBack" aria-label="Back" title="Back">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M15 18l-6-6 6-6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <h1 class="top-title">Artwork Details</h1>
+  </header>
+
+  <main class="page" id="page" role="main">
+    <section class="sheet" aria-labelledby="artTitle">
+      <h2 id="artTitle" class="art-title">Title</h2>
+      <hr class="rule" aria-hidden="true" />
+
+      <div class="field">
+        <div class="field-label">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path fill="#f59e0b" d="M12 12a5 5 0 100-10 5 5 0 000 10zm-9 9a9 9 0 1118 0H3z"/></svg>
+          </span>
+          <span>Artist</span>
+        </div>
+        <div class="field-value" id="artistVal">—</div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path fill="#f59e0b" d="M7 2h10a3 3 0 013 3v14a3 3 0 01-3 3H7a3 3 0 01-3-3V5a3 3 0 013-3zm0 6h10V5H7v3z"/></svg>
+          </span>
+          <span>Year</span>
+        </div>
+        <div class="field-value" id="yearVal">—</div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path fill="#f59e0b" d="M3 10l9-7 9 7v2H3v-2zm2 4h3v6H5v-6zm5 0h4v6h-4v-6zm6 0h3v6h-3v-6z"/></svg>
+          </span>
+          <span>Museum</span>
+        </div>
+        <div class="field-value" id="museumVal">—</div>
+      </div>
+
+      <div class="field">
+        <div class="field-label">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path fill="#f59e0b" d="M12 2a7 7 0 00-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 00-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"/></svg>
+          </span>
+          <span>Location</span>
+        </div>
+        <div class="field-value" id="locationVal">—</div>
+      </div>
+
+      <hr class="rule" aria-hidden="true" />
+
+      <div class="field">
+        <div class="field-label">
+          <span class="ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path fill="#f59e0b" d="M5 4h14a1 1 0 011 1v14l-7-3-7 3V5a1 1 0 011-1z"/></svg>
+          </span>
+          <span>Description</span>
+        </div>
+        <div class="desc" id="descVal">—</div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="../src/js/details.js"></script>
+</body>
+</html>

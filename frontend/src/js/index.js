@@ -181,6 +181,33 @@ function status(msg) {
 }
 
 function openDetail(entry, confidence) {
+  // New behavior: navigate to dedicated details page instead of overlaying on camera
+  try {
+    const payload = {
+      title: entry?.title || 'Artwork',
+      artist: entry?.artist || null,
+      year: entry?.year || null,
+      museum: entry?.museum || null,
+      location: entry?.location || null,
+      description: entry?.descriptions ? pickLangText(entry.descriptions) : (entry?.description || null),
+      confidence: typeof confidence === 'number' ? Math.round(confidence * 100) : undefined,
+      id: entry?.parentId || entry?.id || null,
+    };
+    localStorage.setItem('artlens:lastArtwork', JSON.stringify(payload));
+  } catch {}
+
+  // Stop rendering/camera loop while we navigate
+  running = false;
+  try { const ctx = canvasEl.getContext('2d'); ctx.clearRect(0, 0, canvasEl.width, canvasEl.height); } catch {}
+
+  // If we are inside the iframe scanner, navigate the top window to the details page
+  try {
+    const target = (window.top || window).location;
+    target.href = 'detail.html';
+    return;
+  } catch {}
+
+  // Fallback to previous overlay behavior if navigation failed
   try { infoEl.style.display = 'none'; } catch {}
   hideHint();
   clearHotspots();
@@ -195,17 +222,13 @@ function openDetail(entry, confidence) {
   if (detailBodyEl) detailBodyEl.textContent = desc;
   if (detailEl) {
     detailEl.classList.remove('hidden', 'closing');
-    // Force reflow to ensure animation restarts
     void detailEl.offsetWidth;
     detailEl.classList.add('open');
   }
-  // Ensure the sheet starts from top and is fully visible when content fits
   try {
     const sheet = document.querySelector('.detail-card');
     if (sheet) { sheet.scrollTop = 0; sheet.style.transform = ''; }
   } catch {}
-  running = false;
-  try { const ctx = canvasEl.getContext('2d'); ctx.clearRect(0, 0, canvasEl.width, canvasEl.height); } catch {}
 }
 
 function closeDetail() {
