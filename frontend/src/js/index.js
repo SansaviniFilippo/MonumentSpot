@@ -1,4 +1,4 @@
-import { appEl, videoEl, canvasEl, hudEl, startBtn, statusEl, infoEl, detailEl, detailTitleEl, detailMetaEl, detailBodyEl, backBtn } from './dom.js';
+import { appEl, videoEl, canvasEl, hudEl, startBtn, statusEl, infoEl, detailEl, detailTitleEl, detailMetaEl, detailBodyEl, detailArtistEl, detailYearEl, detailMuseumEl, detailLocationEl, closeDetailBtn, backBtn } from './dom.js';
 import { status as setStatus, showInfo, hideHint, clearHotspots, clientPointToVideo, pointInBox } from './ui.js';
 import { initDetector, detector, closeDetector } from './detection.js';
 import { initEmbeddingModel } from './embedding.js';
@@ -185,13 +185,25 @@ function openDetail(entry, confidence) {
   hideHint();
   clearHotspots();
   if (detailTitleEl) detailTitleEl.textContent = entry?.title || 'Opera';
-  let meta = '';
-  if (entry?.artist) meta += entry.artist;
-  if (entry?.year) meta += (meta ? ' · ' : '') + entry.year;
-  if (entry?.museum) meta += (meta ? ' · ' : '') + entry.museum;
-  if (entry?.location) meta += (meta ? ' · ' : '') + entry.location;
-  if (detailMetaEl) detailMetaEl.textContent = meta;
-  const desc = entry?.descriptions ? pickLangText(entry.descriptions) : (entry?.description || '');
+
+  const setField = (el, val) => {
+    if (!el) return;
+    const row = el.closest ? el.closest('.row') : null;
+    if (val == null || val === '') {
+      el.textContent = '';
+      if (row) row.style.display = 'none';
+    } else {
+      el.textContent = String(val);
+      if (row) row.style.display = '';
+    }
+  };
+
+  setField(detailArtistEl, entry?.artist || '');
+  setField(detailYearEl, entry?.year || '');
+  setField(detailMuseumEl, entry?.museum || '');
+  setField(detailLocationEl, entry?.location || '');
+
+  const desc = entry?.descriptions ? (pickLangText(entry.descriptions) || '') : (entry?.description || '');
   if (detailBodyEl) detailBodyEl.textContent = desc;
   if (detailEl) {
     detailEl.classList.remove('hidden', 'closing');
@@ -230,6 +242,13 @@ function closeDetail() {
 }
 
 backBtn?.addEventListener('click', (e) => {
+  e.preventDefault();
+  if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+  if (typeof e.stopPropagation === 'function') e.stopPropagation();
+  closeDetail();
+});
+
+closeDetailBtn?.addEventListener('click', (e) => {
   e.preventDefault();
   if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
   if (typeof e.stopPropagation === 'function') e.stopPropagation();

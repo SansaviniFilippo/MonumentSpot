@@ -37,13 +37,19 @@
     <div id="hotspots" class="hotspots"></div>
 
     <div id="detail" class="detail hidden" aria-modal="true" role="dialog">
-      <div class="detail-card">
+      <div class="detail-card" role="document" aria-labelledby="detailTitle">
+        <button class="detail-close" id="closeDetailBtn" type="button" aria-label="Close">✕</button>
         <div class="detail-title" id="detailTitle"></div>
-        <div class="detail-meta" id="detailMeta"></div>
-        <div class="detail-body" id="detailBody"></div>
-        <div class="detail-actions">
-          <button id="backBtn" class="back" type="button">Back</button>
+        <div class="detail-sep" role="separator" aria-hidden="true"></div>
+        <div class="detail-rows">
+          <div class="row"><span class="chip">Artist</span><span class="value" id="detailArtist"></span></div>
+          <div class="row"><span class="chip">Year</span><span class="value" id="detailYear"></span></div>
+          <div class="row"><span class="chip">Museum</span><span class="value" id="detailMuseum"></span></div>
+          <div class="row"><span class="chip">Location</span><span class="value" id="detailLocation"></span></div>
         </div>
+        <div class="detail-sep" role="separator" aria-hidden="true"></div>
+        <div class="row"><span class="chip">Description</span></div>
+        <div class="detail-body" id="detailBody"></div>
       </div>
     </div>
 
