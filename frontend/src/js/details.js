@@ -36,6 +36,7 @@
       const rt = localStorage.getItem('artlens:returnTo');
       if (rt === 'scanner') {
         try { localStorage.removeItem('artlens:returnTo'); } catch {}
+        try { localStorage.setItem('artlens:skipCountdown', '1'); } catch {}
         location.replace('scanner.html');
         return;
       }

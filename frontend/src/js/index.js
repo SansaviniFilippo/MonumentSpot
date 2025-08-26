@@ -314,10 +314,24 @@ async function runStartup() {
 
   try {
     status('Starting camera…');
-    const camPromise = startCamera();
-    const cdPromise = startCountdown(3000);
-    await Promise.all([camPromise, cdPromise]);
-    hideActivate();
+    let skipCD = false;
+    try {
+      if (localStorage.getItem('artlens:skipCountdown') === '1') {
+        skipCD = true;
+        localStorage.removeItem('artlens:skipCountdown');
+      }
+    } catch {}
+
+    if (skipCD) {
+      // Fast return from details: no countdown
+      hideActivate();
+      await startCamera();
+    } else {
+      const camPromise = startCamera();
+      const cdPromise = startCountdown(3000);
+      await Promise.all([camPromise, cdPromise]);
+      hideActivate();
+    }
 
     if (hudEl) hudEl.classList.add('hidden');
     running = true;
