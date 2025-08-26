@@ -48,6 +48,7 @@
 /* Close button */
 .detail-close {
   position: absolute; /* absolute top-right inside modal */
+  z-index: 10; /* ensure above card content */
   top: 16px; /* top-4 */
   right: 16px; /* right-4 */
   width: 32px; /* h-8 w-8 */
