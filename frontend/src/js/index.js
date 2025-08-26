@@ -175,45 +175,12 @@ let running = false;
 let lastVideoTime = -1;
 let lastInferTime = 0;
 const INFER_INTERVAL_MS = 90; // ~11 Hz throttling to reduce load and artifacts
-let navigatingToDetail = false; // guard to prevent duplicate navigations
 
 function status(msg) {
   setStatus(statusEl, msg);
 }
 
 function openDetail(entry, confidence) {
-  // Guard against duplicate navigations (double taps/callbacks)
-  if (navigatingToDetail) return;
-  navigatingToDetail = true;
-  // New behavior: navigate to dedicated details page instead of overlaying on camera
-  try {
-    const payload = {
-      title: entry?.title || 'Artwork',
-      artist: entry?.artist || null,
-      year: entry?.year || null,
-      museum: entry?.museum || null,
-      location: entry?.location || null,
-      description: entry?.descriptions ? pickLangText(entry.descriptions) : (entry?.description || null),
-      confidence: typeof confidence === 'number' ? Math.round(confidence * 100) : undefined,
-      id: entry?.parentId || entry?.id || null,
-    };
-    localStorage.setItem('artlens:lastArtwork', JSON.stringify(payload));
-    // mark that we should return to scanner quickly from details
-    localStorage.setItem('artlens:returnTo', 'scanner');
-  } catch {}
-
-  // Stop rendering/camera loop while we navigate
-  running = false;
-  try { const ctx = canvasEl.getContext('2d'); ctx.clearRect(0, 0, canvasEl.width, canvasEl.height); } catch {}
-
-  // If we are inside the iframe scanner, navigate the top window to the details page
-  try {
-    const target = (window.top || window).location;
-    target.href = 'detail.html';
-    return;
-  } catch {}
-
-  // Fallback to previous overlay behavior if navigation failed
   try { infoEl.style.display = 'none'; } catch {}
   hideHint();
   clearHotspots();
@@ -228,15 +195,17 @@ function openDetail(entry, confidence) {
   if (detailBodyEl) detailBodyEl.textContent = desc;
   if (detailEl) {
     detailEl.classList.remove('hidden', 'closing');
+    // Force reflow to ensure animation restarts
     void detailEl.offsetWidth;
     detailEl.classList.add('open');
   }
+  // Ensure the sheet starts from top and is fully visible when content fits
   try {
     const sheet = document.querySelector('.detail-card');
     if (sheet) { sheet.scrollTop = 0; sheet.style.transform = ''; }
   } catch {}
-  // We are staying on the scanner page (overlay fallback), allow future navigations
-  navigatingToDetail = false;
+  running = false;
+  try { const ctx = canvasEl.getContext('2d'); ctx.clearRect(0, 0, canvasEl.width, canvasEl.height); } catch {}
 }
 
 function closeDetail() {
@@ -320,24 +289,10 @@ async function runStartup() {
 
   try {
     status('Starting camera…');
-    let skipCD = false;
-    try {
-      if (localStorage.getItem('artlens:skipCountdown') === '1') {
-        skipCD = true;
-        localStorage.removeItem('artlens:skipCountdown');
-      }
-    } catch {}
-
-    if (skipCD) {
-      // Fast return from details: no countdown
-      hideActivate();
-      await startCamera();
-    } else {
-      const camPromise = startCamera();
-      const cdPromise = startCountdown(3000);
-      await Promise.all([camPromise, cdPromise]);
-      hideActivate();
-    }
+    const camPromise = startCamera();
+    const cdPromise = startCountdown(3000);
+    await Promise.all([camPromise, cdPromise]);
+    hideActivate();
 
     if (hudEl) hudEl.classList.add('hidden');
     running = true;
@@ -378,10 +333,8 @@ if (startBtn) {
 (function(){
   if (!videoEl) return; // Not on scanner page
   function kick(){ try{ runStartup(); } catch(e){} }
-  let delay = 200;
-  try { if (localStorage.getItem('artlens:skipCountdown') === '1') delay = 0; } catch {}
-  if (document.readyState==='complete' || document.readyState==='interactive') setTimeout(kick, delay);
-  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(kick, delay); }, { once: true });
+  if (document.readyState==='complete' || document.readyState==='interactive') setTimeout(kick, 200);
+  else document.addEventListener('DOMContentLoaded', function(){ setTimeout(kick, 200); }, { once: true });
 })();
 
 async function startCamera() {
