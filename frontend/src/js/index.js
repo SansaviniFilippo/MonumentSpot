@@ -6,6 +6,50 @@ import { loadArtworkDB, pickLangText, getLang, setLang } from './db.js';
 import { drawDetections, getLastMatches, resetRenderState } from './render.js';
 
 // Language toggle setup
+// Minimal i18n dictionary helper so we can reuse strings outside applyLanguageToUI
+function getI18n(lang) {
+  const L = (lang || getLang() || 'it').slice(0,2).toLowerCase();
+  const dict = {
+    it: {
+      // Scanner UI strings
+      title: "Scopri l'arte intorno a te",
+      status: "Inquadra le opere con la fotocamera",
+      start: "Avvia",
+      back: "Indietro",
+      activation: {
+        title: "Attivazione fotocamera",
+        subHTML: "Preparati a <span class=\"accent\">inquadrare l’opera</span> con la fotocamera",
+        permNeeded: "Autorizzazione fotocamera necessaria"
+      },
+      // Homepage strings
+      home: {
+        subtitle: "Scopri l'arte attraverso la tecnologia",
+        scan: "Scansiona Opera",
+        curator: "Accesso Curatore",
+        foot: "Basato su un sistema di riconoscimento AI",
+      }
+    },
+    en: {
+      title: "Discover art around you",
+      status: "Point the camera at artworks",
+      start: "Start",
+      back: "Back",
+      activation: {
+        title: "Camera Activating",
+        subHTML: "Get ready to <span class=\"accent\">frame the artwork</span> in your camera view",
+        permNeeded: "Camera permission needed"
+      },
+      home: {
+        subtitle: "Discover art through technology",
+        scan: "Scan Artwork",
+        curator: "Curator Login",
+        foot: "Powered by AI recognition system",
+      }
+    }
+  };
+  return dict[L] || dict.it;
+}
+
 function initLanguageToggle() {
   const current = getLang();
   const btnIt = document.querySelector('.lang-toggle button[data-lang="it"]');
@@ -31,35 +75,7 @@ function initLanguageToggle() {
 
 function applyLanguageToUI() {
   const lang = getLang();
-  const dict = {
-    it: {
-      // Scanner UI strings
-      title: "Scopri l'arte intorno a te",
-      status: "Inquadra le opere con la fotocamera",
-      start: "Avvia",
-      back: "Indietro",
-      // Homepage strings
-      home: {
-        subtitle: "Scopri l'arte attraverso la tecnologia",
-        scan: "Scansiona Opera",
-        curator: "Accesso Curatore",
-        foot: "Basato su un sistema di riconoscimento AI",
-      }
-    },
-    en: {
-      title: "Discover art around you",
-      status: "Point the camera at artworks",
-      start: "Start",
-      back: "Back",
-      home: {
-        subtitle: "Discover art through technology",
-        scan: "Scan Artwork",
-        curator: "Curator Login",
-        foot: "Powered by AI recognition system",
-      }
-    }
-  };
-  const t = dict[lang] || {};
+  const t = getI18n(lang);
 
   // Set <html lang=".."> for accessibility/SEO
   try { document.documentElement.setAttribute('lang', (lang === 'en' ? 'en' : 'it')); } catch {}
@@ -70,6 +86,16 @@ function applyLanguageToUI() {
   if (statusEl && t.status) statusEl.textContent = t.status;
   if (startBtn && t.start) startBtn.textContent = t.start;
   if (backBtn && t.back) backBtn.textContent = t.back;
+
+  // Activation overlay localization (scanner page)
+  const activateTitleEl = document.getElementById('activateTitle');
+  const activateSubEl = document.querySelector('.activate-sub');
+  if (activateTitleEl && t.activation?.title) {
+    activateTitleEl.textContent = t.activation.title;
+  }
+  if (activateSubEl && t.activation?.subHTML) {
+    activateSubEl.innerHTML = t.activation.subHTML;
+  }
 
   // Homepage UI (gate on presence of #scanBtn)
   const scanBtnEl = document.getElementById('scanBtn');
@@ -290,7 +316,8 @@ async function runStartup() {
     // Keep activate card visible and show error if present
     try {
       const title = document.getElementById('activateTitle');
-      if (title) title.textContent = 'Camera permission needed';
+      const t = getI18n(getLang());
+      if (title) title.textContent = t.activation?.permNeeded || 'Camera permission needed';
       if (cnt) cnt.textContent = '!';
       if (bar) bar.style.width = '0%';
     } catch {}
