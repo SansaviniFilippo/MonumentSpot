@@ -3,3 +3,58 @@
 #info { display: none !important; }
 #hud { display: none !important; }
 html, body { background: #000; }
+
+/* Scanner camera header overlay styles matching the provided spec */
+.camera-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 5; /* above video/canvas, below activation overlay (z=10) */
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(0,0,0,0));
+  padding: 16px;
+  padding-top: calc(env(safe-area-inset-top) + 48px); /* pt-12 + safe area */
+  pointer-events: none; /* allow clicks to pass except on inner row */
+}
+.camera-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: auto; /* interactive children */
+}
+.camera-header .back-btn {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border-radius: 999px; /* rounded-full */
+  background: rgba(0,0,0,0.40); /* bg-black/40 */
+  backdrop-filter: blur(6px); /* backdrop-blur-sm */
+  -webkit-backdrop-filter: blur(6px);
+  transition: background-color 160ms ease;
+  color: #fff; text-decoration: none; cursor: pointer;
+}
+.camera-header .back-btn:hover { background: rgba(0,0,0,0.60); }
+.camera-header .back-btn svg { width: 24px; height: 24px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+.camera-header .header-title {
+  display: flex; align-items: center; gap: 8px; /* space-x-2 */
+  color: #fff; font-weight: 500; /* font-medium */
+  text-shadow: 0 1px 1px rgba(0,0,0,0.45);
+  font-size: 18px;
+}
+.camera-header .header-title .cam { width: 20px; height: 20px; fill: currentColor; }
+
+.camera-header .spacer { width: 40px; height: 40px; }
+
+/* Use PNG left arrow icon as white via masking */
+.camera-header .back-btn .ico-left {
+  width: 18px;
+  height: 18px;
+  display: block;
+  background-color: #ffffff; /* render the icon in white */
+  -webkit-mask-image: url('../images/left_arrow.png');
+  mask-image: url('../images/left_arrow.png');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
