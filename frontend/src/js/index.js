@@ -281,21 +281,36 @@ async function runStartup() {
   function startCountdown(ms = 3000) {
     if (!activate) return Promise.resolve();
     activate.classList.remove('hidden');
-    if (cnt) cnt.textContent = '3';
+    const totalSteps = Math.max(1, Math.ceil(ms / 1000)); // e.g., 3s -> 3 steps
+    if (cnt) cnt.textContent = String(totalSteps);
     if (bar) bar.style.width = '0%';
     const t0 = performance.now();
-    let lastShown = 3;
+    let lastShown = totalSteps;
     return new Promise((resolve) => {
       function tick(now) {
         const elapsed = Math.max(0, now - t0);
         const left = Math.max(0, ms - elapsed);
-        const sec = Math.ceil(left / 1000); // 3 -> 2 -> 1 -> 0
-        const show = Math.min(3, Math.max(1, sec || 1));
-        if (cnt && show !== lastShown) { cnt.textContent = String(show); lastShown = show; }
-        const pct = Math.max(0, Math.min(100, (elapsed / ms) * 100));
-        if (bar) bar.style.width = pct.toFixed(2) + '%';
-        if (elapsed < ms) requestAnimationFrame(tick);
-        else resolve();
+        const sec = Math.ceil(left / 1000); // N -> ... -> 1 -> 0
+        const show = Math.min(totalSteps, Math.max(1, sec || 1));
+        // Update number only when it changes
+        if (cnt && show !== lastShown) {
+          cnt.textContent = String(show);
+          lastShown = show;
+          // Step the bar forward by one segment per decrement
+          if (bar) {
+            const completed = (totalSteps - show); // 0 .. totalSteps-1
+            const pctStep = (completed / totalSteps) * 100;
+            bar.style.width = pctStep.toFixed(2) + '%';
+          }
+        }
+        // Keep ticking until the end
+        if (elapsed < ms) {
+          requestAnimationFrame(tick);
+        } else {
+          // Finalize: fill the bar completely at countdown end
+          if (bar) bar.style.width = '100%';
+          resolve();
+        }
       }
       requestAnimationFrame(tick);
     });

@@ -78,9 +78,9 @@ button:disabled { opacity: 0.6; cursor: default; }
   box-shadow: 0 30px 80px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.25);
   text-align: center;
 }
-.activate-ico { width: 64px; height: 64px; background: #dbeafe; border-radius: 999px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+.activate-ico { width: 64px; height: 64px; background: #dbeafe; border-radius: 999px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }
 .activate-ico .cam-ico { display: block; width: 32px; height: 32px; background-color: #2563eb; -webkit-mask-image: url('../images/camera_2.png'); mask-image: url('../images/camera_2.png'); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain; }
-.activate-count { font-weight: 800; font-size: clamp(44px, 12vw, 96px); line-height: 1; margin: clamp(8px, 2vw, 12px) 0 clamp(14px, 3.2vw, 20px); color: #1f2937; }
+.activate-count { font-weight: 800; font-size: clamp(54px, 13vw, 104px); line-height: 1; margin: clamp(12px, 3vw, 18px) 0 clamp(16px, 3.6vw, 22px); color: #1f2937; }
 .activate-progress { height: 10px; border-radius: 999px; background: #e5e7eb; overflow: hidden; margin: clamp(16px, 3.2vw, 22px) auto clamp(18px, 3.8vw, 24px); width: min(88%, 520px); box-shadow: inset 0 1px 2px rgba(0,0,0,0.06); }
 .activate-progress .fill { height: 100%; width: 0%; background: #2563eb; border-radius: 999px; box-shadow: 0 4px 10px rgba(37,99,235,0.35); transition: width 200ms linear; }
 .activate-title { font-size: clamp(18px, 3.8vw, 26px); font-weight: 800; color: #0b1220; margin: clamp(22px, 4.4vw, 30px) 0 clamp(16px, 3.6vw, 22px); }
