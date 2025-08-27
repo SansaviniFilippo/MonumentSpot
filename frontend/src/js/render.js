@@ -370,56 +370,81 @@ function updateRecognitionLabels(matches, onClick) {
   try {
     const host = document.getElementById('bboxLabels');
     if (!host) return;
-    host.innerHTML = '';
-    if (!matches || !matches.length) { host.setAttribute('aria-hidden', 'true'); return; }
+
+    if (!matches || !matches.length) {
+      host.setAttribute('aria-hidden', 'true');
+      host.innerHTML = '';
+      return;
+    }
     host.setAttribute('aria-hidden', 'false');
 
     const lang = (typeof getLang === 'function' ? getLang() : 'it');
     const labelText = lang === 'en' ? 'Tap' : 'Tocca';
     const ariaText = lang === 'en' ? 'Tap for info' : 'Tocca per info';
 
+    const wantedKeys = new Set();
+    const children = Array.from(host.children);
+
     for (const m of matches) {
       if (!m || !m.box) continue;
       const cx = (m.box.originX || 0) + (m.box.width || 0) / 2;
       const cy = (m.box.originY || 0) + (m.box.height || 0) / 2;
       const pt = videoPointToDisplay(cx, cy);
+      const key = (m.entry && (m.entry.id != null ? String(m.entry.id) : (m.entry.title || ''))) || `${Math.round(cx)}x${Math.round(cy)}`;
+      wantedKeys.add(key);
 
-      const el = document.createElement('div');
-      el.className = 'rec-label';
-      el.style.left = `${pt.x}px`;
-      el.style.top = `${pt.y}px`;
-      el.setAttribute('role', 'button');
-      el.setAttribute('tabindex', '0');
-      el.setAttribute('aria-label', ariaText);
+      // Try to reuse existing element by key
+      let el = children.find(ch => ch && ch.dataset && ch.dataset.key === key);
+      if (el) {
+        // Update position only to keep animation running
+        el.style.left = `${pt.x}px`;
+        el.style.top = `${pt.y}px`;
+      } else {
+        // Create new label once
+        el = document.createElement('div');
+        el.className = 'rec-label';
+        el.dataset.key = key;
+        el.style.left = `${pt.x}px`;
+        el.style.top = `${pt.y}px`;
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('aria-label', ariaText);
 
-      // Eye icon
-      el.insertAdjacentHTML('beforeend',
-        '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">\n' +
-        '  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>\n' +
-        '  <circle cx="12" cy="12" r="3"></circle>\n' +
-        '</svg>'
-      );
-      // Text
-      const span = document.createElement('span');
-      span.textContent = labelText;
-      el.appendChild(span);
-      // Info icon
-      el.insertAdjacentHTML('beforeend',
-        '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">\n' +
-        '  <circle cx="12" cy="12" r="10"></circle>\n' +
-        '  <path d="M12 16v-4"></path>\n' +
-        '  <path d="M12 8h.01"></path>\n' +
-        '</svg>'
-      );
+        // Eye icon
+        el.insertAdjacentHTML('beforeend',
+          '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">\n' +
+          '  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>\n' +
+          '  <circle cx="12" cy="12" r="3"></circle>\n' +
+          '</svg>'
+        );
+        // Text
+        const span = document.createElement('span');
+        span.textContent = labelText;
+        el.appendChild(span);
+        // Info icon
+        el.insertAdjacentHTML('beforeend',
+          '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">\n' +
+          '  <circle cx="12" cy="12" r="10"></circle>\n' +
+          '  <path d="M12 16v-4"></path>\n' +
+          '  <path d="M12 8h.01"></path>\n' +
+          '</svg>'
+        );
 
-      const handle = (ev) => {
-        try { ev.preventDefault(); ev.stopPropagation(); } catch {}
-        if (typeof onClick === 'function') onClick(m.entry, m.confidence);
-      };
-      el.addEventListener('click', handle, { passive: false });
-      el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') handle(ev); });
+        const handle = (ev) => {
+          try { ev.preventDefault(); ev.stopPropagation(); } catch {}
+          if (typeof onClick === 'function') onClick(m.entry, m.confidence);
+        };
+        el.addEventListener('click', handle, { passive: false });
+        el.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') handle(ev); });
 
-      host.appendChild(el);
+        host.appendChild(el);
+      }
+    }
+
+    // Remove labels that are no longer needed
+    for (const ch of Array.from(host.children)) {
+      const k = ch && ch.dataset ? ch.dataset.key : undefined;
+      if (!k || !wantedKeys.has(k)) ch.remove();
     }
   } catch (e) { /* noop */ }
 }
