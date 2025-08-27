@@ -89,7 +89,7 @@ p.subtitle {
 #scannerOverlay { position: fixed; inset: 0; background: #000; display: none; z-index: 9999; }
 #scannerOverlay.on { display: block; }
 #scannerOverlay iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-#closeScanner { position: absolute; top: 16px; right: 16px; height: 44px; min-width: 44px; border-radius: 12px; border: 0; background: rgba(0,0,0,0.5); color: #fff; font-size: 20px; cursor: pointer; }
+#closeScanner { position: absolute; top: 16px; right: 16px; height: 44px; min-width: 44px; border-radius: 12px; border: 0; background: rgba(0,0,0,0.5); color: #fff; font-size: 20px; cursor: pointer; display: none; }
 #closeScanner:hover { background: rgba(0,0,0,0.65); }
 
 /* Golden language bar for homepage */
