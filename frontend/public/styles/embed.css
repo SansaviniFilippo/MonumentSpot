@@ -82,3 +82,20 @@ html, body { background: #000; }
 .bbox-labels .rec-label .ico { width: 12px; height: 12px; display: inline-block; color: #059669; /* emerald-600 icons */ }
 
 @keyframes labelPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+
+/* Force-enable critical scanner animations even if user prefers reduced motion (per request) */
+@media (prefers-reduced-motion: reduce) {
+  /* Pulsing label "Tocca" */
+  .bbox-labels .rec-label {
+    animation: labelPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+  }
+  /* Pulse for scanning frame and recognized bbox items */
+  .animate-pulse {
+    animation: opacityPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite !important;
+  }
+  /* Vertical bounce for scanline */
+  .animate-bounce {
+    animation: verticalBounce 1s infinite !important;
+  }
+}
