@@ -10,10 +10,10 @@
   --accent-ink: #221a10;   /* dark text on gold */
 
   /* Detection overlay colors used by JS */
-  --box-color: #d97706; /* amber-600 (fascia color) */
-  --box-fill: rgba(217, 119, 6, 0.12); /* subtle amber glass fill */
-  --box-glow: rgba(217, 119, 6, 0.35); /* glow color for highlights */
-  --box-glow-strong: rgba(217, 119, 6, 0.85); /* strong stroke glow */
+  --box-color: #3b82f6; /* blue-500 for not-yet-recognized state */
+  --box-fill: rgba(59, 130, 246, 0.12); /* subtle blue glass fill */
+  --box-glow: rgba(59, 130, 246, 0.35); /* blue glow color for highlights */
+  --box-glow-strong: rgba(59, 130, 246, 0.85); /* strong blue stroke glow */
   --label-bg: #00D4FF; /* cyan chip */
   --label-fg: #072a31; /* dark-teal text for contrast */
 

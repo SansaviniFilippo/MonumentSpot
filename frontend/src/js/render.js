@@ -226,13 +226,6 @@ export async function drawDetections(ctx, result, onHotspotClick) {
           drawCornerBrackets(ctx, box.originX, box.originY, box.width, box.height, getCornerLen(box.width, box.height), CORNER_OFFSET, GREEN);
           drawCrosshair(ctx, box.originX, box.originY, box.width, box.height, GREEN);
 
-          const pct = (confidence*100).toFixed(1) + '%';
-          {
-            const cornerLen = getCornerLen(box.width, box.height);
-            const labelX = Math.round(box.originX + cornerLen + CORNER_OFFSET + LABEL_GAP_FROM_TL);
-            const labelY = Math.max(0, Math.round(box.originY - LABEL_TOP_OFFSET));
-            drawCapsuleLabel(ctx, labelX, labelY, 'Artwork Detected');
-          }
 
           // Show placard with localized description
           try { showInfo(entry.title || 'Artwork', pickLangText(entry.descriptions), confidence); } catch {}
@@ -296,7 +289,7 @@ export async function drawDetections(ctx, result, onHotspotClick) {
         categoryLogCount++;
       }
       let name = cat.categoryName || 'artwork';
-      let uiLabel = `Artwork Detected`;
+      let uiLabel = ``;
       let matched = null;
 
       try {
@@ -320,16 +313,6 @@ export async function drawDetections(ctx, result, onHotspotClick) {
         drawCrosshair(ctx, box.originX, box.originY, box.width, box.height, GREEN);
       }
 
-      {
-        const cornerLen = getCornerLen(box.width, box.height);
-        const labelX = Math.round(box.originX + cornerLen + CORNER_OFFSET + LABEL_GAP_FROM_TL);
-        const labelY = Math.max(0, Math.round(box.originY - LABEL_TOP_OFFSET));
-        // If we have a matched artwork, show its confidence as badge, otherwise show detector score
-        const badge = (matched && matched.confidence != null)
-          ? `${(matched.confidence*100).toFixed(1)}%`
-          : (cat?.score != null ? `${(cat.score*100).toFixed(0)}%` : null);
-        drawCapsuleLabel(ctx, labelX, labelY, uiLabel, badge);
-      }
     }
   }
 
