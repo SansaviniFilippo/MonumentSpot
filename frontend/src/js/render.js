@@ -85,6 +85,25 @@ function getCornerLen(w, h) {
   return Math.round(Math.min(w, h) * CORNER_LEN_FACTOR);
 }
 
+// Pulsing helpers for recognized (green) bbox brackets
+function pulseAlpha() {
+  // 2s cycle: 0%->100% opacity: 1, 50%: 0.5, 100%: 1
+  const period = 2000;
+  const t = nowMs ? nowMs() : Date.now();
+  const phase = (t % period) / period; // 0..1
+  // Cosine wave: cos(0)=1, cos(pi)=-1 => map to [0.5, 1.0]
+  return 0.75 + 0.25 * Math.cos(2 * Math.PI * phase);
+}
+
+function drawPulsingGreenCorners(ctx, x, y, w, h) {
+  ctx.save();
+  const a = pulseAlpha();
+  // Guard alpha bounds
+  ctx.globalAlpha = Math.max(0.05, Math.min(1, a));
+  drawCornerBrackets(ctx, x, y, w, h, getCornerLen(w, h), CORNER_OFFSET, GREEN);
+  ctx.restore();
+}
+
 function drawRoundedBox(ctx, x, y, w, h) {
   const r = Math.max(10, Math.min(w, h) * 0.06);
   ctx.save();
@@ -225,7 +244,7 @@ export async function drawDetections(ctx, result, onHotspotClick) {
           // premium glow for the matched box (green)
           drawBestGlow(ctx, box.originX, box.originY, box.width, box.height, GREEN);
           // overlay green brackets and crosshair to indicate recognition
-          drawCornerBrackets(ctx, box.originX, box.originY, box.width, box.height, getCornerLen(box.width, box.height), CORNER_OFFSET, GREEN);
+          drawPulsingGreenCorners(ctx, box.originX, box.originY, box.width, box.height);
 
 
           // Show placard with localized description
@@ -309,7 +328,7 @@ export async function drawDetections(ctx, result, onHotspotClick) {
         lastMatches.push({ entry, confidence, box: hitBox });
         anyMatch = true;
         // Overlay green styling to indicate recognized artwork
-        drawCornerBrackets(ctx, box.originX, box.originY, box.width, box.height, getCornerLen(box.width, box.height), CORNER_OFFSET, GREEN);
+        drawPulsingGreenCorners(ctx, box.originX, box.originY, box.width, box.height);
       }
 
     }
@@ -323,7 +342,7 @@ export async function drawDetections(ctx, result, onHotspotClick) {
     // Glow highlight on best (green)
     drawBestGlow(ctx, best.box.originX, best.box.originY, best.box.width, best.box.height, GREEN);
     // Green corner brackets and crosshair on best
-    drawCornerBrackets(ctx, best.box.originX, best.box.originY, best.box.width, best.box.height, getCornerLen(best.box.width, best.box.height), CORNER_OFFSET, GREEN);
+    drawPulsingGreenCorners(ctx, best.box.originX, best.box.originY, best.box.width, best.box.height);
     // Hotspot and hint for current best
     renderHotspot(best, onHotspotClick);
     // Update recognition labels for all matches
@@ -340,7 +359,7 @@ export async function drawDetections(ctx, result, onHotspotClick) {
     // Keep last best briefly to avoid flicker
     const b = stickyBest;
     drawBestGlow(ctx, b.box.originX, b.box.originY, b.box.width, b.box.height, GREEN);
-    drawCornerBrackets(ctx, b.box.originX, b.box.originY, b.box.width, b.box.height, getCornerLen(b.box.width, b.box.height), CORNER_OFFSET, GREEN);
+    drawPulsingGreenCorners(ctx, b.box.originX, b.box.originY, b.box.width, b.box.height);
     updateRecognitionLabels([b], onHotspotClick);
   } else {
     stickyBest = null;
