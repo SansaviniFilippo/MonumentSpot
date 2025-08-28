@@ -48,7 +48,6 @@ def upsert_artwork_with_descriptors(data: Dict[str, Any]):
                 raise ValueError(f"Descriptor {idx} dim mismatch")
             normalized.append({
                 "descriptor_id": vd.get("id") or f"main#{idx}",
-                "image_path": vd.get("image_path"),
                 "embedding": norm,
             })
 
@@ -88,16 +87,14 @@ def upsert_artwork_with_descriptors(data: Dict[str, Any]):
     for d in normalized:
         run(
             """
-            insert into descriptors (artwork_id, descriptor_id, image_path, embedding)
-            values (:art_id, :desc_id, :image_path, :embedding)
+            insert into descriptors (artwork_id, descriptor_id, embedding)
+            values (:art_id, :desc_id, :embedding)
             on conflict (artwork_id, descriptor_id) do update set
-              image_path = excluded.image_path,
               embedding = excluded.embedding
             """,
             {
                 "art_id": art_id,
                 "desc_id": d["descriptor_id"],
-                "image_path": d.get("image_path"),
                 "embedding": d["embedding"],
             }
         )

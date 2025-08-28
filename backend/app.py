@@ -342,7 +342,7 @@ def get_artwork_detail(art_id: str):
         raise HTTPException(status_code=404, detail="Artwork not found")
     desc_rows = run(
         """
-        select descriptor_id, image_path
+        select descriptor_id
         from descriptors
         where artwork_id = :id
         order by descriptor_id
@@ -350,7 +350,7 @@ def get_artwork_detail(art_id: str):
         {"id": art_id}
     ).mappings().all()
     data = dict(row)
-    data["descriptors"] = [dict(r) for r in desc_rows]
+    data["descriptors"] = [{"descriptor_id": r["descriptor_id"], "image_path": None} for r in desc_rows]
     return data
 
 
@@ -407,12 +407,12 @@ def _refresh_cache_from_db() -> _TupleAlias[int, int]:
 
     # Load descriptors
     rows_desc = run(
-        "select artwork_id, descriptor_id, image_path, embedding from descriptors order by artwork_id, descriptor_id"
+        "select artwork_id, descriptor_id, embedding from descriptors order by artwork_id, descriptor_id"
     ).all()
 
     new_flat = []
     dim = None
-    for art_id, desc_id, img, emb in rows_desc:
+    for art_id, desc_id, emb in rows_desc:
         # emb is a PG float8[] mapped as Python list/tuple via psycopg/SQLAlchemy
         vec = list(emb) if emb is not None else None
         if not isinstance(vec, list):
@@ -425,7 +425,6 @@ def _refresh_cache_from_db() -> _TupleAlias[int, int]:
         new_flat.append({
             "artwork_id": str(art_id),
             "descriptor_id": str(desc_id),
-            "image_path": img,
             "embedding": vec,
         })
 
