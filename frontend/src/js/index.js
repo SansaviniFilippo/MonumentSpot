@@ -22,6 +22,14 @@ function getI18n(lang) {
         permNeeded: "Autorizzazione fotocamera necessaria"
       },
       scannerHeader: { title: "Scansione Opera" },
+      detail: {
+        artist: "Artista",
+        year: "Anno",
+        museum: "Museo",
+        location: "Luogo",
+        description: "Descrizione",
+        close: "Chiudi"
+      },
       // Homepage strings
       home: {
         subtitle: "Scopri l'arte attraverso la tecnologia",
@@ -41,6 +49,14 @@ function getI18n(lang) {
         permNeeded: "Camera permission needed"
       },
       scannerHeader: { title: "Scan Artwork" },
+      detail: {
+        artist: "Artist",
+        year: "Year",
+        museum: "Museum",
+        location: "Location",
+        description: "Description",
+        close: "Close"
+      },
       home: {
         subtitle: "Discover art through technology",
         scan: "Scan Artwork",
@@ -103,6 +119,25 @@ function applyLanguageToUI() {
   const scannerHeaderTitle = document.querySelector('.camera-header .header-title span');
   if (scannerHeaderTitle && t.scannerHeader?.title) {
     scannerHeaderTitle.textContent = t.scannerHeader.title;
+  }
+
+  // Detail sheet localization (if present)
+  const detailCard = document.querySelector('.detail-card');
+  if (detailCard && t.detail) {
+    try {
+      const rows = detailCard.querySelectorAll('.detail-rows .row');
+      // Expecting order: Artist, Year, Museum, Location
+      if (rows[0]) rows[0].querySelector('.chip').textContent = t.detail.artist || 'Artist';
+      if (rows[1]) rows[1].querySelector('.chip').textContent = t.detail.year || 'Year';
+      if (rows[2]) rows[2].querySelector('.chip').textContent = t.detail.museum || 'Museum';
+      if (rows[3]) rows[3].querySelector('.chip').textContent = t.detail.location || 'Location';
+      // Description label is in a separate row directly under .detail-card
+      const descChipEl = detailCard.querySelector(':scope > .row .chip');
+      if (descChipEl && t.detail.description) descChipEl.textContent = t.detail.description;
+    } catch {}
+    // Close button label
+    const closeBtn = document.getElementById('closeDetailBtn');
+    if (closeBtn && t.detail.close) { closeBtn.setAttribute('title', t.detail.close); closeBtn.setAttribute('aria-label', t.detail.close); }
   }
 
   // Homepage UI (gate on presence of #scanBtn)
