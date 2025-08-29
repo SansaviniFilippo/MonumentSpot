@@ -1,4 +1,4 @@
-import { appEl, videoEl, canvasEl, infoEl, detailEl, detailTitleEl, detailBodyEl, detailArtistEl, detailYearEl, detailMuseumEl, detailLocationEl, closeDetailBtn } from './dom.js';
+import { appEl, videoEl, canvasEl, hudEl, startBtn, statusEl, infoEl, detailEl, detailTitleEl, detailMetaEl, detailBodyEl, detailArtistEl, detailYearEl, detailMuseumEl, detailLocationEl, closeDetailBtn, backBtn } from './dom.js';
 import { status as setStatus, showInfo, hideHint, clearHotspots, clientPointToVideo, pointInBox } from './ui.js';
 import { initDetector, detector, closeDetector } from './detection.js';
 import { initEmbeddingModel } from './embedding.js';
@@ -101,6 +101,9 @@ function applyLanguageToUI() {
   // Scanner UI (if present)
   const titleEl = document.querySelector('.card-title');
   if (titleEl && t.title) titleEl.textContent = t.title;
+  if (statusEl && t.status) statusEl.textContent = t.status;
+  if (startBtn && t.start) startBtn.textContent = t.start;
+  if (backBtn && t.back) backBtn.textContent = t.back;
 
   // Activation overlay localization (scanner page)
   const activateTitleEl = document.getElementById('activateTitle');
@@ -217,7 +220,7 @@ let lastInferTime = 0;
 const INFER_INTERVAL_MS = 90; // ~11 Hz throttling to reduce load and artifacts
 
 function status(msg) {
-  setStatus(null, msg);
+  setStatus(statusEl, msg);
 }
 
 function openDetail(entry, confidence) {
@@ -281,6 +284,12 @@ function closeDetail() {
   if (!running) { running = true; startLoop(); }
 }
 
+backBtn?.addEventListener('click', (e) => {
+  e.preventDefault();
+  if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+  if (typeof e.stopPropagation === 'function') e.stopPropagation();
+  closeDetail();
+});
 
 closeDetailBtn?.addEventListener('click', (e) => {
   e.preventDefault();
@@ -362,6 +371,7 @@ async function runStartup() {
     await Promise.all([camPromise, cdPromise]);
     hideActivate();
 
+    if (hudEl) hudEl.classList.add('hidden');
     running = true;
     startLoop();
 
