@@ -87,7 +87,7 @@ import { getLang, setLang } from './db.js';
       if (creds && email === String(creds.email || '').toLowerCase() && pass === String(creds.password || '')) {
         setAuthed();
         showMsg(t().msg_ok, true);
-        setTimeout(()=>{ location.href = './curator_dashboard.html'; }, 200);
+        setTimeout(()=>{ location.href = '../public/curator_dashboard.html'; }, 200);
       } else {
         showMsg(t().msg_bad);
       }

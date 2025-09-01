@@ -369,7 +369,7 @@ if (formEl) formEl.addEventListener('submit', onSubmit);
 
   // Sign out
   const signOutBtn = document.getElementById('signOutBtn');
-  if (signOutBtn) signOutBtn.addEventListener('click', ()=>{ try { localStorage.removeItem('artlens.auth'); } catch(_) {} location.href = './curator_access.html'; });
+  if (signOutBtn) signOutBtn.addEventListener('click', ()=>{ try { localStorage.removeItem('artlens.auth'); } catch(_) {} location.href = '../public/curator_access.html'; });
   // ------------------------------
   // Manage Collection: tabs + table
   // ------------------------------

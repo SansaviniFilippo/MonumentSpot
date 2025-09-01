@@ -528,7 +528,7 @@ function stopAll() {
   const curatorBtn = document.getElementById('curatorBtn');
 
   if (curatorBtn) {
-    curatorBtn.addEventListener('click', () => { location.href = './curator_access.html'; });
+    curatorBtn.addEventListener('click', () => { location.href = '../public/curator_access.html'; });
   }
 
   if (!scanBtn || !overlay || !frame || !closeBtn) return; // Not on homepage
