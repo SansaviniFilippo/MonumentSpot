@@ -1,0 +1,1 @@
+Added console-only performance instrumentation: perf accumulator and timers in frontend/src/js/render.js; preparing to append benchmarkMatchLoop and expose it on window.

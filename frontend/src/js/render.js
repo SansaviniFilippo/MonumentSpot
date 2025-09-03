@@ -36,6 +36,23 @@ const LABEL_GAP_FROM_TL = 8;     // extra gap after the TL bracket so label neve
 const LABEL_TOP_OFFSET = 36;     // vertical distance from box top to label top
 const GREEN = '#10b981';         // recognized bbox color
 
+// --- Perf only-console statistics ---
+const perfStats = { samples: 0, cropMs: 0, embedMs: 0, matchMs: 0, lastPrint: 0 };
+function logPerfIfNeeded() {
+  const t = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+  // stampa circa ogni 3s (solo console)
+  if (t - perfStats.lastPrint > 3000 && perfStats.samples > 0) {
+    const s = perfStats;
+    const avg = (x) => (x / s.samples).toFixed(2);
+    console.log(
+      `[Perf] over ${s.samples} samples — crop: ${avg(s.cropMs)} ms, ` +
+      `embed: ${avg(s.embedMs)} ms, match: ${avg(s.matchMs)} ms ` +
+      `(dbSize=${artworkDB.length}, dim=${dbDim})`
+    );
+    s.samples = 0; s.cropMs = 0; s.embedMs = 0; s.matchMs = 0; s.lastPrint = t;
+  }
+}
+
 function nowMs() { return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(); }
 
 function roundRectPath(ctx, x, y, w, h, r){
@@ -294,9 +311,21 @@ export async function drawDetections(ctx, result, onHotspotClick) {
 
       try {
         if (hasEmbedModel()) {
+          const t0 = performance.now();
           const crop = cropToCanvasFromVideo(det.boundingBox);
+          const t1 = performance.now();
           const emb = embedFromCanvas(crop);
-          matched = findBestMatch(emb);
+          const t2 = performance.now();
+          const matchedLocal = findBestMatch(emb);
+          const t3 = performance.now();
+
+          perfStats.samples++;
+          perfStats.cropMs  += (t1 - t0);
+          perfStats.embedMs += (t2 - t1);
+          perfStats.matchMs += (t3 - t2);
+          logPerfIfNeeded();
+
+          matched = matchedLocal;
         }
       } catch (e) {
         console.warn('Embedding/match failed:', e);
@@ -447,3 +476,43 @@ function updateRecognitionLabels(matches, onClick) {
     }
   } catch (e) { /* noop */ }
 }
+
+
+// --- Console benchmark for pure matching loop ---
+export async function benchmarkMatchLoop(iterations = 200, warmup = 20) {
+  if (!artworkDB.length || !dbDim) {
+    console.warn('DB non caricato o dim sconosciuta');
+    return;
+  }
+  function randomUnitVec(d) {
+    const arr = new Float32Array(d);
+    for (let i = 0; i < d; i++) arr[i] = Math.random() - 0.5;
+    let norm = 0; for (let i = 0; i < d; i++) norm += arr[i] * arr[i];
+    norm = Math.sqrt(norm); for (let i = 0; i < d; i++) arr[i] /= norm || 1;
+    return Array.from(arr);
+  }
+  // Warmup
+  for (let i = 0; i < warmup; i++) findBestMatch(randomUnitVec(dbDim));
+  const times = [];
+  for (let i = 0; i < iterations; i++) {
+    const q = randomUnitVec(dbDim);
+    const t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    findBestMatch(q);
+    const t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    times.push(t1 - t0);
+    // allow UI to breathe
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise(r => setTimeout(r, 0));
+  }
+  times.sort((a,b)=>a-b);
+  const N = times.length;
+  const mean = times.reduce((a,b)=>a+b,0)/N;
+  const p = (x) => times[Math.floor(x*(N-1))];
+  const p50 = p(0.50), p90 = p(0.90), p95 = p(0.95), p99 = p(0.99);
+  console.log(`[Bench Match] N=${N} mean=${mean.toFixed(3)}ms p50=${p50.toFixed(3)} p90=${p90.toFixed(3)} p95=${p95.toFixed(3)} p99=${p99.toFixed(3)} | DB=${artworkDB.length} dim=${dbDim}`);
+  try { if (typeof window !== 'undefined') window.__lastBenchMatch = { mean, p50, p90, p95, p99, N, dbSize: artworkDB.length, dim: dbDim }; } catch {}
+  return { mean, p50, p90, p95, p99, N, dbSize: artworkDB.length, dim: dbDim };
+}
+
+// Expose to window for easier Console access
+try { if (typeof window !== 'undefined') window.benchmarkMatchLoop = benchmarkMatchLoop; } catch {}
