@@ -111,31 +111,28 @@ def health():
 
 @app.get("/catalog", response_model=List[CatalogItem])
 def get_catalog(with_image_counts: bool = False):
-    """Ottimizzato per Transaction Pooler - query più semplici."""
-    from .db import run_simple
-    
     if with_image_counts:
-        # Query divisa in due parti più semplici per Transaction Pooler
-        rows = run_simple(
-            "select id, title, artist, year, museum, location, descriptions from artworks order by title nulls last"
+        rows = run(
+            """
+            select a.id, a.title, a.artist, a.year, a.museum, a.location, a.descriptions,
+                   coalesce(dc.cnt, 0) as image_count
+            from artworks a
+            left join (
+              select artwork_id, count(*) as cnt
+              from descriptors
+              group by artwork_id
+            ) as dc on dc.artwork_id = a.id
+            order by a.title nulls last
+            """
         ).mappings().all()
-        
-        # Seconda query per i conteggi
-        counts = run_simple(
-            "select artwork_id, count(*) as cnt from descriptors group by artwork_id"
-        ).mappings().all()
-        
-        # Combina risultati
-        count_map = {str(r["artwork_id"]): r["cnt"] for r in counts}
-        result = []
-        for r in rows:
-            row_dict = dict(r)
-            row_dict["image_count"] = count_map.get(str(r["id"]), 0)
-            result.append(row_dict)
-        return result
+        return [dict(r) for r in rows]
     else:
-        rows = run_simple(
-            "select id, title, artist, year, museum, location, descriptions from artworks order by title nulls last"
+        rows = run(
+            """
+            select id, title, artist, year, museum, location, descriptions
+            from artworks
+            order by title nulls last
+            """
         ).mappings().all()
         return [dict(r) for r in rows]
 
@@ -298,12 +295,12 @@ def upsert_artwork(art: ArtworkUpsert, x_admin_token: str = Header(default="")):
             art_dict["id"] = art_id
 
         upsert_artwork_with_descriptors(art_dict)
-        # Refresh in-memory cache incrementally for better performance
+        # Refresh in-memory cache from Supabase so /match reflects the latest data
         try:
-            _incremental_refresh_artwork(art_id)
+            _refresh_cache_from_db()
         except Exception as re:
             # Log but do not fail the upsert response
-            print("[ArtLens] incremental cache refresh error after upsert:", re)
+            print("[ArtLens] cache refresh error after upsert:", re)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -372,9 +369,9 @@ def delete_artwork_descriptor(art_id: str, descriptor_id: str, x_admin_token: st
     if count == 0:
         raise HTTPException(status_code=404, detail="Descriptor not found")
     try:
-        _incremental_refresh_artwork(art_id)
+        _refresh_cache_from_db()
     except Exception as re:
-        print("[ArtLens] incremental cache refresh error after descriptor delete:", re)
+        print("[ArtLens] cache refresh error after descriptor delete:", re)
     return {"status": "ok", "deleted": descriptor_id}
 
 
@@ -388,199 +385,63 @@ def health_db():
         return {"db": "supabase", "error": str(e)}
 
 
-@app.get("/cache_status")
-def cache_status():
-    """Monitor cache status for debugging and performance analysis."""
-    import time
-    return {
-        "artworks_count": len(artworks),
-        "descriptors_count": len(flat_descriptors),
-        "dimension": db_dim,
-        "cache_ready": len(flat_descriptors) > 0 and db_dim is not None,
-        "cache_empty": len(artworks) == 0 and len(flat_descriptors) == 0,
-        "timestamp": time.time(),
-        "status": "ready" if len(flat_descriptors) > 0 else "empty"
-    }
-
-
 # -----------------------------
 # Cache refresh from Supabase for /match
 # -----------------------------
 from typing import Tuple as _TupleAlias  # local alias to avoid shadowing
 
 def _refresh_cache_from_db() -> _TupleAlias[int, int]:
-    """Reload artworks and flat_descriptors from Supabase in chunks.
+    """Reload artworks and flat_descriptors from Supabase.
     Returns (num_artworks, num_descriptors).
     """
     global artworks, flat_descriptors, db_dim
-    
-    from .db import run_batch, run_count
-    import time
-    import logging
-    
-    logger = logging.getLogger(__name__)
-    logger.info("[Cache] Starting cache refresh...")
-    
-    # Step 1: Load artworks metadata (usually not too many)
-    logger.info("[Cache] Loading artworks metadata...")
-    rows_art = run_batch(
-        "select id, title, artist, year, museum, location, descriptions from artworks"
+
+    # Load artworks metadata
+    rows_art = run(
+        """
+        select id, title, artist, year, museum, location, descriptions
+        from artworks
+        """
     ).mappings().all()
     new_artworks = {str(r["id"]): dict(r) for r in rows_art}
-    logger.info(f"[Cache] Loaded {len(new_artworks)} artworks")
 
-    # Step 2: Get total descriptor count for progress tracking
-    total_desc = run_count("select count(*) from descriptors").fetchone()[0]
-    logger.info(f"[Cache] Loading {total_desc} descriptors in batches...")
+    # Load descriptors
+    rows_desc = run(
+        "select artwork_id, descriptor_id, embedding from descriptors order by artwork_id, descriptor_id"
+    ).all()
 
-    # Step 3: Load descriptors in chunks
     new_flat = []
     dim = None
-    chunk_size = 500  # Batch size ottimizzato per Transaction Pooler
-    processed = 0
-    batch_times = []
-    
-    for offset in range(0, total_desc, chunk_size):
-        batch_start = time.time()
-        logger.info(f"[Cache] Processing descriptors {offset}-{min(offset+chunk_size, total_desc)} / {total_desc}")
-        
-        # Carica batch di descriptors
-        rows_desc = run_batch(
-            """
-            select artwork_id, descriptor_id, embedding 
-            from descriptors 
-            order by artwork_id, descriptor_id 
-            limit :limit offset :offset
-            """,
-            {"limit": chunk_size, "offset": offset}
-        ).all()
-        
-        # Process batch
-        for art_id, desc_id, emb in rows_desc:
-            processed += 1
-            vec = list(emb) if emb is not None else None
-            if not isinstance(vec, list):
-                continue
-                
-            if dim is None:
-                dim = len(vec)
-            elif len(vec) != dim:
-                logger.warning(f"[Cache] Skipping descriptor with inconsistent dimension: {len(vec)} vs {dim}")
-                continue
-                
-            new_flat.append({
-                "artwork_id": str(art_id),
-                "descriptor_id": str(desc_id),
-                "embedding": vec,
-            })
-        
-        batch_time = time.time() - batch_start
-        batch_times.append(batch_time)
-        
-        # Pausa breve tra i batch per non sovraccaricare il pooler
-        if offset + chunk_size < total_desc:
-            time.sleep(0.1)  # 100ms pause
-    
-    # Update global cache
+    for art_id, desc_id, emb in rows_desc:
+        # emb is a PG float8[] mapped as Python list/tuple via psycopg/SQLAlchemy
+        vec = list(emb) if emb is not None else None
+        if not isinstance(vec, list):
+            continue
+        if dim is None:
+            dim = len(vec)
+        elif len(vec) != dim:
+            # Skip inconsistent dimensions
+            continue
+        new_flat.append({
+            "artwork_id": str(art_id),
+            "descriptor_id": str(desc_id),
+            "embedding": vec,
+        })
+
     artworks = new_artworks
     flat_descriptors = new_flat
     db_dim = dim
-    
-    # Performance logging
-    total_time = sum(batch_times)
-    avg_batch_time = sum(batch_times) / len(batch_times) if batch_times else 0
-    logger.info(f"[Cache] Cache refresh completed in {total_time:.2f}s, avg batch time: {avg_batch_time:.3f}s")
-    logger.info(f"[Cache] Final results: {len(artworks)} artworks, {len(flat_descriptors)} descriptors, dim={dim}")
-    
     return (len(artworks), len(flat_descriptors))
-
-
-def _incremental_refresh_artwork(artwork_id: str):
-    """Refresh cache for a single artwork - optimized for Transaction Pooler."""
-    global artworks, flat_descriptors
-    
-    from .db import run_simple
-    import logging
-    
-    logger = logging.getLogger(__name__)
-    logger.info(f"[Cache] Incremental refresh for artwork {artwork_id}")
-    
-    # Update artwork metadata
-    row_art = run_simple(
-        "select id, title, artist, year, museum, location, descriptions from artworks where id = :id",
-        {"id": artwork_id}
-    ).mappings().fetchone()
-    
-    if row_art:
-        artworks[str(artwork_id)] = dict(row_art)
-        logger.info(f"[Cache] Updated artwork metadata for {artwork_id}")
-    else:
-        # Remove from cache if not found in DB
-        if str(artwork_id) in artworks:
-            del artworks[str(artwork_id)]
-            logger.info(f"[Cache] Removed artwork {artwork_id} from cache (not found in DB)")
-    
-    # Update descriptors for this artwork
-    rows_desc = run_simple(
-        "select artwork_id, descriptor_id, embedding from descriptors where artwork_id = :id order by descriptor_id",
-        {"id": artwork_id}
-    ).all()
-    
-    # Remove old descriptors for this artwork
-    old_count = len(flat_descriptors)
-    flat_descriptors = [d for d in flat_descriptors if d["artwork_id"] != str(artwork_id)]
-    removed_count = old_count - len(flat_descriptors)
-    
-    # Add new descriptors
-    added_count = 0
-    for art_id, desc_id, emb in rows_desc:
-        vec = list(emb) if emb is not None else None
-        if isinstance(vec, list):
-            flat_descriptors.append({
-                "artwork_id": str(art_id),
-                "descriptor_id": str(desc_id),
-                "embedding": vec,
-            })
-            added_count += 1
-    
-    logger.info(f"[Cache] Incremental update for {artwork_id}: removed {removed_count}, added {added_count} descriptors")
 
 
 # Refresh cache on startup so /match is ready without legacy JSON
 @app.on_event("startup")
 def _startup_refresh_cache():
-    import time
-    import logging
-    
-    logger = logging.getLogger(__name__)
-    max_startup_retries = 3
-    base_delay = 2.0
-    
-    for attempt in range(max_startup_retries):
-        try:
-            logger.info(f"[Startup] Cache loading attempt {attempt + 1}/{max_startup_retries}")
-            start_time = time.time()
-            
-            a, d = _refresh_cache_from_db()
-            
-            load_time = time.time() - start_time
-            logger.info(f"[ArtLens] Cache loaded successfully in {load_time:.2f}s: artworks={a}, descriptors={d}, dim={db_dim}")
-            return  # Success - exit function
-            
-        except Exception as e:
-            logger.error(f"[Startup] Cache loading failed on attempt {attempt + 1}: {str(e)}")
-            
-            if attempt < max_startup_retries - 1:
-                delay = base_delay * (2 ** attempt)  # Exponential backoff
-                logger.info(f"[Startup] Retrying in {delay}s...")
-                time.sleep(delay)
-            else:
-                logger.error("[ArtLens] All startup cache loading attempts failed. App will start with empty cache.")
-                # Set empty defaults
-                global artworks, flat_descriptors, db_dim
-                artworks = {}
-                flat_descriptors = []
-                db_dim = None
+    try:
+        a, d = _refresh_cache_from_db()
+        print(f"[ArtLens] Cache loaded from Supabase: artworks={a}, descriptors={d}, dim={db_dim}")
+    except Exception as e:
+        print(f"[ArtLens] Failed to load cache from Supabase at startup: {e}")
 
 
 

@@ -27,10 +27,8 @@ engine = create_engine(
     echo=False,
     # Configurazioni specifiche per psycopg3 e Transaction Pooler
     connect_args={
-        "connect_timeout": 8,  # Ridotto per fallire velocemente
-        "command_timeout": 15,  # Timeout per query lunghe
-        "prepare_threshold": None,  # Disabilita prepared statements
-        "options": "-c statement_timeout=20s"  # Timeout a livello PostgreSQL
+        "connect_timeout": 10,  # Timeout connessione più breve
+        "prepare_threshold": None
     }
 )
 
@@ -80,11 +78,3 @@ def run(sql: str, params=None):
 def run_simple(sql: str, params=None, max_retries=2):
     """Execute simple SQL with fewer retries for faster operations."""
     return run_with_retry(sql, params, max_retries=max_retries, retry_delay=0.5)
-
-def run_batch(sql: str, params=None, max_retries=2, retry_delay=0.3):
-    """Execute SQL optimized for batch operations with Transaction Pooler."""
-    return run_with_retry(sql, params, max_retries=max_retries, retry_delay=retry_delay)
-
-def run_count(sql: str, params=None):
-    """Execute count queries quickly."""
-    return run_with_retry(sql, params, max_retries=1, retry_delay=0.2)
