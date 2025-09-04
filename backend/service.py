@@ -32,7 +32,7 @@ def ensure_db_dim(dim: int):
     )
 
 
-def upsert_artwork_with_descriptors(data: Dict[str, Any]):
+def upsert_artwork_with_descriptors(data: Dict[str, Any]) -> Dict[str, Any]:
     art_id = str(data["id"]).strip()
     descs = data.get("visual_descriptors") or []
 
@@ -98,3 +98,6 @@ def upsert_artwork_with_descriptors(data: Dict[str, Any]):
                 "embedding": d["embedding"],
             }
         )
+
+    # Return details for cache updates by caller
+    return {"id": art_id, "descriptors": normalized, "observed_dim": observed_dim}

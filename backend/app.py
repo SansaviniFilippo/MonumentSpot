@@ -309,13 +309,18 @@ def upsert_artwork(art: ArtworkUpsert, x_admin_token: str = Header(default="")):
             art_id = _ensure_unique_art_id(base)
             art_dict["id"] = art_id
 
-        upsert_artwork_with_descriptors(art_dict)
+        upsert_res = upsert_artwork_with_descriptors(art_dict)
         # Refresh in-memory cache from Supabase so /match reflects the latest data
         try:
             _refresh_cache_from_db()
         except Exception as re:
-            # Log but do not fail the upsert response
-            print("[ArtLens] cache refresh error after upsert:", re)
+            # Fallback: apply to in-memory cache and persist warm cache to disk
+            print("[ArtLens] cache refresh error after upsert, applying fallback:", re)
+            try:
+                _apply_upsert_to_cache(art_dict, upsert_res or {})
+                _save_cache_to_file()
+            except Exception as e2:
+                print("[ArtLens] fallback cache apply failed:", e2)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -416,6 +421,57 @@ def health_db():
 # Cache refresh from Supabase for /match
 # -----------------------------
 from typing import Tuple as _TupleAlias  # local alias to avoid shadowing
+
+
+def _apply_upsert_to_cache(art_meta: Dict[str, Any], upsert: Dict[str, Any]) -> None:
+    """Best-effort: merge the just-upserted data into the in-memory cache.
+    - Updates artworks[art_id] metadata fields.
+    - Appends/updates descriptors in flat_descriptors for matching descriptor_id.
+    - Sets db_dim if it was None and observed_dim is present.
+    """
+    try:
+        global artworks, flat_descriptors, db_dim
+        art_id = (art_meta.get("id") or "").strip()
+        if not art_id:
+            return
+        # Update metadata for artwork
+        cur = artworks.get(art_id) or {}
+        cur.update({
+            "title": art_meta.get("title"),
+            "artist": art_meta.get("artist"),
+            "year": art_meta.get("year"),
+            "museum": art_meta.get("museum"),
+            "location": art_meta.get("location"),
+            "descriptions": art_meta.get("descriptions"),
+        })
+        artworks[art_id] = cur
+
+        # Merge descriptors (avoid duplicates by descriptor_id)
+        new_descs = upsert.get("descriptors") or []
+        if new_descs:
+            incoming_ids = {str(d.get("descriptor_id")) for d in new_descs if d.get("descriptor_id") is not None}
+            # Remove old entries with same (artwork_id, descriptor_id) to avoid duplicates
+            if incoming_ids:
+                flat_descriptors = [d for d in flat_descriptors if not (d.get("artwork_id") == art_id and str(d.get("descriptor_id")) in incoming_ids)]
+            # Append new entries
+            for d in new_descs:
+                desc_id = d.get("descriptor_id")
+                emb = d.get("embedding")
+                if desc_id is None or not isinstance(emb, list):
+                    continue
+                flat_descriptors.append({
+                    "artwork_id": art_id,
+                    "descriptor_id": str(desc_id),
+                    "embedding": emb,
+                    # image_path unknown here; leave absent/None
+                })
+        # Set db_dim if not set
+        if db_dim is None:
+            od = upsert.get("observed_dim")
+            if isinstance(od, int):
+                db_dim = od
+    except Exception as e:
+        print("[ArtLens] Warning: failed to apply upsert to cache:", e)
 
 
 def _save_cache_to_file():
