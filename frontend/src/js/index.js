@@ -563,20 +563,3 @@ function stopAll() {
     }
   });
 })();
-
-
-// Listen for curator-side DB invalidation to hot-reload artworks without page refresh
-try {
-  window.addEventListener('storage', async (e) => {
-    if (!e || e.key !== 'ART_DB_INVALIDATED') return;
-    try {
-      status('Aggiornamento database opere…');
-      await loadArtworkDB();
-      try { resetRenderState && resetRenderState(); } catch {}
-      status('Database aggiornato');
-      setTimeout(() => { try { status('Ready'); } catch {} }, 1200);
-    } catch (err) {
-      console.warn('Artwork DB refresh failed:', err);
-    }
-  });
-} catch {}

@@ -102,7 +102,6 @@ async function onSubmit(e) {
     }
     const json = await res.json().catch(() => ({}));
     setStatus('Operazione completata.');
-    try { localStorage.setItem('ART_DB_INVALIDATED', String(Date.now())); } catch {}
     alert(`Opera salvata!\nID: ${json.id || '(generato)'}\nDescrittori: ${visual_descriptors.length}`);
     form.reset();
   } catch (err) {

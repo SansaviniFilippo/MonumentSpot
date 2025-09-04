@@ -319,18 +319,17 @@ def upsert_artwork(art: ArtworkUpsert, x_admin_token: str = Header(default="")):
         try:
             # Try DB upsert first
             upsert_res = upsert_artwork_with_descriptors(art_dict)
-            # Immediately apply to in-memory cache so scanning is available right away
-            try:
-                _apply_upsert_to_cache(art_dict, upsert_res or {})
-                _save_cache_to_file()
-            except Exception as e2:
-                print("[ArtLens] warning: immediate cache apply after upsert failed:", e2)
-            # Then try to refresh from Supabase to keep cache fully in sync
+            # Refresh in-memory cache from Supabase so /match reflects the latest data
             try:
                 _refresh_cache_from_db()
             except Exception as re:
-                # Keep the immediate cache if refresh fails (already applied)
-                print("[ArtLens] cache refresh error after upsert, keeping immediate cache:", re)
+                # Fallback: apply to in-memory cache and persist warm cache to disk
+                print("[ArtLens] cache refresh error after upsert, applying fallback:", re)
+                try:
+                    _apply_upsert_to_cache(art_dict, upsert_res or {})
+                    _save_cache_to_file()
+                except Exception as e2:
+                    print("[ArtLens] fallback cache apply failed:", e2)
         except ValueError as e:
             # Validation error coming from service (e.g., dim mismatch)
             raise HTTPException(status_code=400, detail=str(e))
