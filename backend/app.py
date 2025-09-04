@@ -119,53 +119,60 @@ def health():
 
 @app.get("/catalog", response_model=List[CatalogItem])
 def get_catalog(with_image_counts: bool = False):
+    # Serve from in-memory cache populated at startup
+    items: List[Dict[str, Any]] = []
+    counts: Dict[str, int] = {}
     if with_image_counts:
-        rows = run(
-            """
-            select a.id, a.title, a.artist, a.year, a.museum, a.location, a.descriptions,
-                   coalesce(dc.cnt, 0) as image_count
-            from artworks a
-            left join (
-              select artwork_id, count(*) as cnt
-              from descriptors
-              group by artwork_id
-            ) as dc on dc.artwork_id = a.id
-            order by a.title nulls last
-            """
-        ).mappings().all()
-        return [dict(r) for r in rows]
-    else:
-        rows = run(
-            """
-            select id, title, artist, year, museum, location, descriptions
-            from artworks
-            order by title nulls last
-            """
-        ).mappings().all()
-        return [dict(r) for r in rows]
+        for d in flat_descriptors:
+            aid = d.get("artwork_id")
+            if aid is not None:
+                counts[aid] = counts.get(aid, 0) + 1
+    for art_id, art in artworks.items():
+        entry = {
+            "id": art_id,
+            "title": art.get("title"),
+            "artist": art.get("artist"),
+            "year": art.get("year"),
+            "museum": art.get("museum"),
+            "location": art.get("location"),
+            "descriptions": art.get("descriptions"),
+        }
+        if with_image_counts:
+            entry["image_count"] = counts.get(art_id, 0)
+        items.append(entry)
+    # Sort by title, nulls/empties last
+    def _sort_key(x: Dict[str, Any]):
+        t = x.get("title")
+        empty = (t is None) or (isinstance(t, str) and t.strip() == "")
+        return (empty, str(t).lower() if t is not None else "")
+    items.sort(key=_sort_key)
+    return items
 
 
 @app.get("/descriptors", response_model=Dict[str, List[float]])
 def get_descriptors():
-    rows = run(
-        """
-        select distinct on (artwork_id) artwork_id, embedding
-        from descriptors
-        order by artwork_id, descriptor_id
-        """
-    ).all()
+    # Serve distinct first embedding per artwork from in-memory cache
     out: Dict[str, List[float]] = {}
-    for art_id, emb in rows:
-        out[str(art_id)] = list(emb)
+    for d in flat_descriptors:
+        aid = d.get("artwork_id")
+        if aid is None or aid in out:
+            continue
+        emb = d.get("embedding")
+        if isinstance(emb, list):
+            out[str(aid)] = emb
     return out
 
 # New v2 endpoints
 @app.get("/descriptors_v2", response_model=Dict[str, List[List[float]]])
 def get_descriptors_v2():
-    rows = run("select artwork_id, embedding from descriptors").all()
+    # Serve all embeddings per artwork from in-memory cache
     out: Dict[str, List[List[float]]] = {}
-    for art_id, emb in rows:
-        out.setdefault(str(art_id), []).append(list(emb))
+    for d in flat_descriptors:
+        aid = d.get("artwork_id")
+        emb = d.get("embedding")
+        if aid is None or not isinstance(emb, list):
+            continue
+        out.setdefault(str(aid), []).append(emb)
     return out
 
 @app.get("/descriptors_meta_v2")
