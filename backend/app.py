@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any, Tuple
 import os
+import json
+import tempfile
+import threading
 import numpy as np
 
 # ----------------------------------------------------------------------------
@@ -46,6 +49,11 @@ app.add_middleware(
 artworks: Dict[str, Dict[str, Any]] = {}
 flat_descriptors: List[Dict[str, Any]] = []
 db_dim: Optional[int] = None
+
+# Disk cache configuration
+ENABLE_DISK_CACHE = os.getenv("ENABLE_DISK_CACHE", "true").strip().lower() in ("1", "true", "yes", "y", "on")
+DISK_CACHE_PATH = os.getenv("DISK_CACHE_PATH") or os.path.join(tempfile.gettempdir(), "artlens_cache.json")
+_cache_io_lock = threading.Lock()
 
 
 def _l2_normalize(vec: np.ndarray) -> np.ndarray:
@@ -393,6 +401,61 @@ def health_db():
 # -----------------------------
 from typing import Tuple as _TupleAlias  # local alias to avoid shadowing
 
+
+def _save_cache_to_file():
+    if not ENABLE_DISK_CACHE:
+        return
+    try:
+        payload = {
+            "version": 1,
+            "db_dim": db_dim,
+            "artworks": artworks,
+            "flat_descriptors": flat_descriptors,
+        }
+        # Atomic write
+        tmp_path = DISK_CACHE_PATH + ".tmp"
+        with _cache_io_lock:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+            os.replace(tmp_path, DISK_CACHE_PATH)
+        size = os.path.getsize(DISK_CACHE_PATH)
+        print(f"[ArtLens] Cache saved to disk: {DISK_CACHE_PATH} ({size} bytes)")
+    except Exception as e:
+        print("[ArtLens] Failed to save cache to disk:", e)
+
+
+def _load_cache_from_file() -> bool:
+    if not ENABLE_DISK_CACHE:
+        return False
+    try:
+        if not os.path.exists(DISK_CACHE_PATH):
+            return False
+        with _cache_io_lock:
+            with open(DISK_CACHE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        if not isinstance(data, dict):
+            return False
+        req_keys = ("artworks", "flat_descriptors")
+        if not all(k in data for k in req_keys):
+            return False
+        # Basic sanity checks
+        aw = data.get("artworks")
+        fd = data.get("flat_descriptors")
+        dim = data.get("db_dim")
+        if not isinstance(aw, dict) or not isinstance(fd, list):
+            return False
+        # Assign globals
+        global artworks, flat_descriptors, db_dim
+        artworks = {str(k): v for k, v in aw.items()}
+        flat_descriptors = fd
+        db_dim = dim if isinstance(dim, int) or dim is None else None
+        print(f"[ArtLens] Cache loaded from disk: artworks={len(artworks)}, descriptors={len(flat_descriptors)}, dim={db_dim}")
+        return True
+    except Exception as e:
+        print("[ArtLens] Failed to load cache from disk:", e)
+        return False
+
+
 def _refresh_cache_from_db() -> _TupleAlias[int, int]:
     """Reload artworks and flat_descriptors from Supabase.
     Returns (num_artworks, num_descriptors).
@@ -434,12 +497,24 @@ def _refresh_cache_from_db() -> _TupleAlias[int, int]:
     artworks = new_artworks
     flat_descriptors = new_flat
     db_dim = dim
+    # Persist warm cache to disk (best-effort)
+    try:
+        _save_cache_to_file()
+    except Exception as e:
+        print("[ArtLens] Warning: could not persist cache to disk:", e)
     return (len(artworks), len(flat_descriptors))
 
 
 # Refresh cache on startup so /match is ready without legacy JSON
 @app.on_event("startup")
 def _startup_refresh_cache():
+    # Try disk cache first for warm startup
+    try:
+        if _load_cache_from_file():
+            return
+    except Exception as e:
+        print("[ArtLens] Disk cache load failed, will try DB:", e)
+
     # Retry startup cache load to tolerate transient DB connectivity on Render/Supabase
     max_retries = int(os.getenv("STARTUP_DB_RETRIES", "5"))
     delay = float(os.getenv("STARTUP_DB_INITIAL_DELAY", "1.5"))
