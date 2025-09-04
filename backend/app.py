@@ -382,7 +382,10 @@ def health_db():
         cnt = int(row[0]) if row else 0
         return {"db": "supabase", "artworks": cnt}
     except Exception as e:
-        return {"db": "supabase", "error": str(e)}
+        e_orig = getattr(e, "orig", None)
+        raw_msg = str(e_orig) if e_orig else str(e)
+        # Trim to avoid leaking long SQLAlchemy help URLs
+        return {"db": "supabase", "error": raw_msg[:200]}
 
 
 # -----------------------------

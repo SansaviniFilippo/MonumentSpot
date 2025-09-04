@@ -36,7 +36,11 @@ _connect_args = {
 engine = create_engine(
     DB_URL,
     client_encoding="utf8",
-    poolclass=NullPool,
+    pool_pre_ping=True,
+    pool_recycle=int(os.getenv("DB_POOL_RECYCLE", "300")),
+    pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
+    max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "5")),
+    pool_timeout=int(os.getenv("DB_POOL_TIMEOUT", "10")),
     connect_args=_connect_args,
 )
 
@@ -52,25 +56,31 @@ def run_with_retry(sql: str, params=None, max_retries=3, retry_delay=1):
                 return conn.execute(text(sql), params or {})
         except OperationalError as e:
             last_exception = e
-            error_msg = str(e).lower()
+            e_orig = getattr(e, "orig", None)
+            raw_msg = str(e_orig) if e_orig else str(e)
+            error_msg = raw_msg.lower()
 
             # Retry solo per errori di connessione specifici
             should_retry = any([
                 "server closed the connection unexpectedly" in error_msg,
                 "connection failed" in error_msg,
+                "could not connect to server" in error_msg,
                 "connection timeout expired" in error_msg,
-                "connection to server" in error_msg and "failed" in error_msg
+                "timeout expired" in error_msg,
+                "connection reset by peer" in error_msg,
+                "terminating connection" in error_msg,
+                ("connection to server" in error_msg and "failed" in error_msg),
             ])
 
             if should_retry and attempt < max_retries - 1:
-                logger.warning(f"Connection failed on attempt {attempt + 1}/{max_retries}: {str(e)[:200]}...")
+                logger.warning(f"Connection failed on attempt {attempt + 1}/{max_retries}: {raw_msg[:200]}...")
                 logger.warning(f"Retrying in {retry_delay}s...")
                 time.sleep(retry_delay)
                 retry_delay *= 2  # Exponential backoff
                 continue
             else:
                 # Se non è un errore di connessione, non fare retry
-                logger.error(f"Database error (no retry): {str(e)[:200]}...")
+                logger.error(f"Database error (no retry): {raw_msg[:200]}...")
                 raise
         except Exception as e:
             # Per altri tipi di errori, non fare retry
