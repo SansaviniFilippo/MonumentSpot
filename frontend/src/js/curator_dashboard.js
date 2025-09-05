@@ -1,6 +1,6 @@
 import { initEmbeddingModel, embedFromCanvas } from './embedding.js';
 import { BACKEND_URL, CROP_SIZE } from './constants.js';
-import { getLang } from './db.js';
+import { getLang, loadArtworkDB } from './db.js';
 
 const submitBtn = document.getElementById('submitBtn');
 const statusEl = document.getElementById('statusMsg');
@@ -101,6 +101,12 @@ async function onSubmit(e) {
       throw new Error(`${res.status} ${t}`);
     }
     const json = await res.json().catch(() => ({}));
+    setStatus('Operazione completata. Aggiorno memoria…');
+    try {
+      await loadArtworkDB();
+    } catch (e) {
+      console.warn('Reload DB after upsert failed:', e);
+    }
     setStatus('Operazione completata.');
     alert(`Opera salvata!\nID: ${json.id || '(generato)'}\nDescrittori: ${visual_descriptors.length}`);
     form.reset();
