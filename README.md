@@ -222,4 +222,3 @@ Note:
 - frontend/
   - public/ (pagine HTML, CSS, immagini, modelli .tflite)
   - src/js/ (logica scanner, embedding, matching, UI, dashboard)
-- package.json (nessuno script: usare server statico semplice)
