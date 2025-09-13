@@ -21,7 +21,7 @@ ArtLens è un sistema di riconoscimento opere d’arte composto da:
   - Connessione a Postgres (Supabase) via SQLAlchemy.
   - Cache in memoria dei dati per risposte rapide; opzionale persistenza su disco.
 
-## Esecuzione locale con Docker (consigliato)
+## Esecuzione locale con Docker
 Prerequisiti:
 - Docker Desktop (o Colima/OrbStack) installato e in esecuzione
 
@@ -52,63 +52,6 @@ Troubleshooting rapido:
 - CORS in locale → assicurati di usare `/api` (default del frontend) e non un dominio esterno.
 
 ---
-
-## Requisiti (metodo alternativo, senza Docker)
-- Python 3.10+ (consigliato 3.11)
-- Node.js non necessario; basta un server statico semplice (anche Python http.server) per servire il frontend
-- Un database Postgres raggiungibile (es. Supabase) e la sua connection string
-- Browser moderno con supporto WebGL (per TFJS) e permesso fotocamera
-
-
-## Setup e avvio
-
-### 1) Backend (FastAPI)
-1. Creare ed attivare un virtualenv e installare i requisiti:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-   pip install -r backend/requirements.txt
-   ```
-2. Impostare le variabili d’ambiente minime:
-   - SUPABASE_DB_URL: stringa connessione Postgres (usare driver psycopg v3). Esempi:
-     - postgres://USER:PASS@HOST:PORT/DB?sslmode=require
-     - postgresql://USER:PASS@HOST:PORT/DB?sslmode=require
-   - ADMIN_TOKEN: token segreto richiesto dagli endpoint admin (es. generare con un UUID)
-   - FRONTEND_ORIGINS (opzionale): origini CORS consentite (default: localhost 5173/8080/3000)
-   - ENABLE_DISK_CACHE (opzionale, default true) e DISK_CACHE_PATH (opzionale)
-
-   Esempio (macOS/Linux):
-   ```bash
-   export SUPABASE_DB_URL="postgres://USER:PASS@HOST:6543/postgres?sslmode=require"
-   export ADMIN_TOKEN="inserisci-un-token-segreto"
-   export FRONTEND_ORIGINS="http://localhost:8080"
-   ```
-3. Avviare FastAPI con Uvicorn:
-   ```bash
-   uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
-   ```
-   Verifica: http://localhost:8000/health
-
-
-### 2) Frontend (static server)
-Il frontend deve essere servito da un server HTTP (la fotocamera non funziona su file:// e richiede HTTPS su domini pubblici; in locale localhost è consentito).
-
-1. Portarsi nella cartella frontend/public ed avviare un server statico, ad esempio:
-   ```bash
-   # Opzione Python
-   cd frontend/public
-   python -m http.server 8080
-   # oppure (Node, se lo usi): npx serve -l 8080
-   ```
-2. Aprire il browser su: http://localhost:8080/
-3. Per puntare il frontend al backend locale, assicurarsi che in scanner.html e curator_dashboard.html ci sia:
-   ```html
-   <script>window.BACKEND_URL='http://localhost:8000';</script>
-   ```
-   In alternativa, constants.js ha un fallback a http://localhost:8000.
-
-Nota: su dispositivi mobili la fotocamera richiede HTTPS; per demo locale usare il desktop o configurare un reverse proxy HTTPS.
-
 
 ## Utilizzo
 
