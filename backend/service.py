@@ -1,5 +1,6 @@
 import json
 from typing import Any, Dict, List, Optional
+
 import numpy as np
 
 from .db import run
@@ -12,7 +13,8 @@ def l2_normalize(arr: List[float]) -> List[float]:
 
 
 def get_db_dim() -> Optional[int]:
-    row = run("select value from settings where key='db_dim' limit 1").fetchone()
+    res = run("select value from settings where key='db_dim' limit 1")
+    row = res.fetchone()
     if not row:
         return None
     try:
@@ -42,7 +44,7 @@ def upsert_artwork_with_descriptors(data: Dict[str, Any]) -> Dict[str, Any]:
     for idx, vd in enumerate(descs):
         emb = vd.get("embedding")
 
-        # Handle dict embeddings (from TypedArray JSON)
+        # Accept both arrays and dicts with numeric keys (in case a TypedArray was JSON-serialized)
         if isinstance(emb, dict):
             try:
                 numeric_items = sorted(
@@ -59,20 +61,16 @@ def upsert_artwork_with_descriptors(data: Dict[str, Any]) -> Dict[str, Any]:
                 observed_dim = len(norm)
             elif len(norm) != observed_dim:
                 raise ValueError(f"Descriptor {idx} dim mismatch")
-            normalized.append(
-                {"descriptor_id": vd.get("id") or f"main#{idx}", "embedding": norm}
-            )
+            normalized.append({"descriptor_id": vd.get("id") or f"main#{idx}", "embedding": norm})
 
     db_dim = get_db_dim()
     if observed_dim:
         if db_dim is None:
             ensure_db_dim(observed_dim)
         elif observed_dim != db_dim:
-            raise ValueError(
-                f"Embedding dim mismatch: got {observed_dim}, expected {db_dim}"
-            )
+            raise ValueError(f"Embedding dim mismatch: got {observed_dim}, expected {db_dim}")
 
-    # Upsert artwork metadata
+    # Upsert artwork metadata (single query)
     run(
         """
         insert into artworks (id, title, artist, year, museum, location, descriptions, updated_at)
@@ -97,7 +95,8 @@ def upsert_artwork_with_descriptors(data: Dict[str, Any]) -> Dict[str, Any]:
         },
     )
 
-    # Batch upsert descriptors
+    # Batch upsert descriptors in one executemany call.
+    # Use prepare=False to avoid server-side prepared statement naming conflicts.
     if normalized:
         values = [
             {"art_id": art_id, "desc_id": d["descriptor_id"], "embedding": d["embedding"]}
@@ -110,7 +109,8 @@ def upsert_artwork_with_descriptors(data: Dict[str, Any]) -> Dict[str, Any]:
                 on conflict (artwork_id, descriptor_id) do update set
                 embedding = excluded.embedding
             """,
-            values,  # batch insert
+            values,
+            prepare=False,  # IMPORTANT to avoid DuplicatePreparedStatement issues
         )
 
     return {"id": art_id, "descriptors": normalized, "observed_dim": observed_dim}
