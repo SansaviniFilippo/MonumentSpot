@@ -74,9 +74,8 @@ class CatalogItem(BaseModel):
     title: Optional[str] = None
     artist: Optional[str] = None
     year: Optional[str] = None
-    museum: Optional[str] = None
-    location: Optional[str] = None
     descriptions: Optional[Dict[str, str]] = None
+    location_coords: Optional[Dict[str, Any]] = None
     visual_descriptors: Optional[List[VisualDescriptor]] = None
     model_config = ConfigDict(extra='allow')
 
@@ -133,9 +132,8 @@ def get_catalog(with_image_counts: bool = False):
             "title": art.get("title"),
             "artist": art.get("artist"),
             "year": art.get("year"),
-            "museum": art.get("museum"),
-            "location": art.get("location"),
             "descriptions": art.get("descriptions"),
+            "location_coords": art.get("location_coords"),
         }
         if with_image_counts:
             entry["image_count"] = counts.get(art_id, 0)
@@ -267,9 +265,8 @@ class ArtworkUpsert(BaseModel):
     title: Optional[str] = None
     artist: Optional[str] = None
     year: Optional[str] = None
-    museum: Optional[str] = None
-    location: Optional[str] = None
     descriptions: Optional[Dict[str, str]] = None
+    location_coords: Optional[Dict[str, Any]] = None
     visual_descriptors: Optional[List[Dict[str, Any]]] = None
     model_config = ConfigDict(extra='allow')
 
@@ -414,9 +411,8 @@ def get_artwork_detail(art_id: str):
         "title": art.get("title"),
         "artist": art.get("artist"),
         "year": art.get("year"),
-        "museum": art.get("museum"),
-        "location": art.get("location"),
         "descriptions": art.get("descriptions"),
+        "location_coords": art.get("location_coords"),
     }
 
     # Build descriptors list from cached flat_descriptors
@@ -493,9 +489,8 @@ def _apply_upsert_to_cache(art_meta: Dict[str, Any], upsert: Dict[str, Any]) -> 
             "title": art_meta.get("title"),
             "artist": art_meta.get("artist"),
             "year": art_meta.get("year"),
-            "museum": art_meta.get("museum"),
-            "location": art_meta.get("location"),
             "descriptions": art_meta.get("descriptions"),
+            "location_coords": art_meta.get("location_coords"),
         })
         artworks[art_id] = cur
 
@@ -590,7 +585,7 @@ def _refresh_cache_from_db() -> _TupleAlias[int, int]:
     # Load artworks metadata
     rows_art = run(
         """
-        select id, title, artist, year, museum, location, descriptions
+        select id, title, artist, year, descriptions, location_coords
         from artworks
         """
     ).mappings().all()
