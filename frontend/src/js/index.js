@@ -7,6 +7,7 @@ import { drawDetections, getLastMatches, resetRenderState } from './render.js';
 
 
 let userCoords = null;
+let userMarkerFeature = null;
 
 async function getUserPosition() {
   return new Promise((resolve, reject) => {
@@ -263,6 +264,8 @@ function openDetail(entry, confidence) {
   if (detailBodyEl) detailBodyEl.textContent = desc;
 
   initDetailMap(entry.location_coords, userCoords);
+  startLiveUserTracking();
+
 
   if (detailEl) {
     detailEl.classList.remove('hidden', 'closing');
@@ -294,8 +297,8 @@ function initDetailMap(geojson, userCoords) {
     target: mapEl,
     layers: [new ol.layer.Tile({ source: new ol.source.OSM() })],
     view: new ol.View({
-      center: ol.proj.fromLonLat([12.4924, 41.8902]), // Roma default
-      zoom: 15,
+      center: ol.proj.fromLonLat([12.0409, 44.2220]), // 📍 Forlì
+      zoom: 17,
     }),
     controls: [],
     interactions: [],
@@ -322,6 +325,9 @@ function initDetailMap(geojson, userCoords) {
         }));
         vectorSrc.addFeature(feature);
         extentFeatures.push(feature);
+
+        window.monumentFeature = feature;
+
       } else if (g.type === "Point" && g.coordinates) {
         const [lon, lat] = g.coordinates;
         const point = new ol.geom.Point(ol.proj.fromLonLat([lon, lat]));
@@ -335,6 +341,9 @@ function initDetailMap(geojson, userCoords) {
         }));
         vectorSrc.addFeature(feature);
         extentFeatures.push(feature);
+
+        window.monumentFeature = feature;
+
       }
     } catch (e) {
       console.warn("Invalid GeoJSON:", e);
@@ -343,17 +352,16 @@ function initDetailMap(geojson, userCoords) {
 
   // === Punto utente ===
   if (userCoords?.lon && userCoords?.lat) {
-    const point = new ol.geom.Point(ol.proj.fromLonLat([userCoords.lon, userCoords.lat]));
-    const feature = new ol.Feature(point);
-    feature.setStyle(new ol.style.Style({
+    userMarkerFeature = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat([userCoords.lon, userCoords.lat])));
+    userMarkerFeature.setStyle(new ol.style.Style({
       image: new ol.style.Circle({
-        radius: 6,
+        radius: 9,
         fill: new ol.style.Fill({ color: "#007aff" }),
         stroke: new ol.style.Stroke({ color: "#fff", width: 2 }),
       }),
     }));
-    vectorSrc.addFeature(feature);
-    extentFeatures.push(feature);
+    vectorSrc.addFeature(userMarkerFeature);
+    extentFeatures.push(userMarkerFeature);
   }
 
   // === Adatta la vista all'insieme di tutte le geometrie ===
@@ -376,8 +384,70 @@ function initDetailMap(geojson, userCoords) {
 }
 
 
+function startLiveUserTracking() {
+  if (window.userWatchId) {
+    navigator.geolocation.clearWatch(window.userWatchId);
+    window.userWatchId = null;
+  }
+
+  window.userWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      userCoords = { lat: latitude, lon: longitude };
+
+      if (!userMarkerFeature || !window.detailMapInstance || !window.monumentFeature)
+        return;
+
+      const target = ol.proj.fromLonLat([longitude, latitude]);
+      const geom = userMarkerFeature.getGeometry();
+      const current = geom.getCoordinates();
+
+      // Smooth marker animation
+      const duration = 800;
+      let t0 = null;
+      const stepMarker = (ts) => {
+        if (!t0) t0 = ts;
+        const p = Math.min((ts - t0) / duration, 1);
+        geom.setCoordinates([
+          current[0] + (target[0] - current[0]) * p,
+          current[1] + (target[1] - current[1]) * p,
+        ]);
+        if (p < 1) requestAnimationFrame(stepMarker);
+      };
+      requestAnimationFrame(stepMarker);
+
+      // === AUTO-ZOOM + FOLLOW ===
+      const view = window.detailMapInstance.getView();
+
+      // Calcolo bounding box dinamico tra utente e monumento
+      const extent = ol.extent.createEmpty();
+      ol.extent.extend(extent, userMarkerFeature.getGeometry().getExtent());
+      ol.extent.extend(extent, window.monumentFeature.getGeometry().getExtent());
+
+      view.fit(extent, {
+        padding: [40, 40, 40, 40],
+        maxZoom: 20,     // più zoom massimo
+        minZoom: 16,     // non permette di allontanarsi troppo
+        duration: 600,
+      });
+
+
+    },
+    (err) => console.warn('GPS watch error:', err),
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
+  );
+}
+
+
+
 
 function closeDetail() {
+  if (window.userWatchId) {
+    navigator.geolocation.clearWatch(window.userWatchId);
+    window.userWatchId = null;
+  }
+
+
   if (detailEl) {
 
     detailEl.classList.remove('open');
