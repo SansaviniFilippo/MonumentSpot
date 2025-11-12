@@ -7,24 +7,92 @@ import { drawDetections, getLastMatches, resetRenderState } from './render.js';
 
 
 let userCoords = null;
+window.userCoords = userCoords;
 let userMarkerFeature = null;
 
-async function getUserPosition() {
+async function getUserPosition(countdownMs = 8000) {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject('Geolocation non supportata');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        userCoords = { lat: latitude, lon: longitude };
-        console.log('Posizione utente:', userCoords);
+    if (!navigator.geolocation) {
+      reject("Geolocation non supportata");
+      return;
+    }
+
+    let bestPos = null;
+    let permissionDenied = false;
+    let resolved = false;
+
+    function onSuccess(pos) {
+      const { latitude, longitude, accuracy } = pos.coords;
+      console.log(`→ Nuova posizione: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} (accuracy ${accuracy}m)`);
+
+      // Aggiorna userCoords globali continuamente
+      userCoords = { lat: latitude, lon: longitude, acc: accuracy };
+      window.userCoords = userCoords;
+
+      // Mantiene la più precisa come best
+      if (!bestPos || accuracy < bestPos.coords.accuracy) {
+        bestPos = pos;
+      }
+
+      // Risolvi appena arriva una posizione abbastanza precisa (<50m)
+      if (!resolved && accuracy < 50) {
+        resolved = true;
+        console.log("✅ Fix GPS preciso ottenuto:", userCoords);
         resolve(userCoords);
-      },
-      (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
+      }
+
+      // Aggiorna la mappa live (se aperta)
+      if (window.userMarkerFeature && window.detailMapInstance) {
+        const coords = ol.proj.fromLonLat([longitude, latitude]);
+        window.userMarkerFeature.getGeometry().setCoordinates(coords);
+      }
+    }
+
+    function onError(err) {
+      console.warn("Errore GPS:", err);
+      if (err.code === err.PERMISSION_DENIED) {
+        permissionDenied = true;
+        resolved = true;
+        console.warn("🚫 Permesso posizione negato");
+        resolve(null);
+      }
+    }
+
+    // 🔁 Attiva un solo watcher continuo globale
+    if (!window.userWatchId) {
+      window.userWatchId = navigator.geolocation.watchPosition(onSuccess, onError, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+      });
+    }
+
+    // Timeout di sicurezza (se non arriva un fix buono)
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        if (bestPos) {
+          const { latitude, longitude, accuracy } = bestPos.coords;
+          userCoords = { lat: latitude, lon: longitude, acc: accuracy };
+          window.userCoords = userCoords;
+          console.log("⚠️ Timeout GPS, uso bestPos:", userCoords);
+          resolve(userCoords);
+        } else {
+          console.warn("❌ Nessuna posizione ottenuta entro timeout");
+          resolve(null);
+        }
+      }
+    }, countdownMs + 500);
   });
 }
 
+
+function stopUserTracking() {
+  if (window.userWatchId) {
+    navigator.geolocation.clearWatch(window.userWatchId);
+    console.log("🛑 Tracciamento GPS interrotto");
+    window.userWatchId = null;
+  }
+}
 
 
 // Language toggle setup
@@ -423,69 +491,49 @@ function initDetailMap(geojson, userCoords) {
 
 
 function startLiveUserTracking() {
-  if (window.userWatchId) {
-    navigator.geolocation.clearWatch(window.userWatchId);
-    window.userWatchId = null;
-  }
+  if (!window.detailMapInstance || !window.monumentFeature || !userMarkerFeature) return;
 
-  window.userWatchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      const { latitude, longitude } = pos.coords;
-      userCoords = { lat: latitude, lon: longitude };
+  // Aggiorna il marker e la vista ogni 2 secondi usando la posizione globale
+  const update = () => {
+    if (!userCoords || !userCoords.lat || !userCoords.lon) return;
+    const target = ol.proj.fromLonLat([userCoords.lon, userCoords.lat]);
+    const geom = userMarkerFeature.getGeometry();
 
-      if (!userMarkerFeature || !window.detailMapInstance || !window.monumentFeature)
-        return;
+    // Smooth marker animation
+    const current = geom.getCoordinates();
+    const duration = 800;
+    let t0 = null;
+    const step = (ts) => {
+      if (!t0) t0 = ts;
+      const p = Math.min((ts - t0) / duration, 1);
+      geom.setCoordinates([
+        current[0] + (target[0] - current[0]) * p,
+        current[1] + (target[1] - current[1]) * p,
+      ]);
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
 
-      const target = ol.proj.fromLonLat([longitude, latitude]);
-      const geom = userMarkerFeature.getGeometry();
-      const current = geom.getCoordinates();
+    // Auto-zoom + follow tra user e monumento
+    const extent = ol.extent.createEmpty();
+    ol.extent.extend(extent, userMarkerFeature.getGeometry().getExtent());
+    ol.extent.extend(extent, window.monumentFeature.getGeometry().getExtent());
+    window.detailMapInstance.getView().fit(extent, {
+      padding: [40, 40, 40, 40],
+      maxZoom: 21,
+      minZoom: 16,
+      duration: 600,
+    });
+  };
 
-      // Smooth marker animation
-      const duration = 800;
-      let t0 = null;
-      const stepMarker = (ts) => {
-        if (!t0) t0 = ts;
-        const p = Math.min((ts - t0) / duration, 1);
-        geom.setCoordinates([
-          current[0] + (target[0] - current[0]) * p,
-          current[1] + (target[1] - current[1]) * p,
-        ]);
-        if (p < 1) requestAnimationFrame(stepMarker);
-      };
-      requestAnimationFrame(stepMarker);
-
-      // === AUTO-ZOOM + FOLLOW ===
-      const view = window.detailMapInstance.getView();
-
-      // Calcolo bounding box dinamico tra utente e monumento
-      const extent = ol.extent.createEmpty();
-      ol.extent.extend(extent, userMarkerFeature.getGeometry().getExtent());
-      ol.extent.extend(extent, window.monumentFeature.getGeometry().getExtent());
-
-      view.fit(extent, {
-        padding: [40, 40, 40, 40],
-        maxZoom: 21,     // più zoom massimo
-        minZoom: 16,     // non permette di allontanarsi troppo
-        duration: 600,
-      });
-
-
-    },
-    (err) => console.warn('GPS watch error:', err),
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
-  );
+  // aggiorna periodicamente (non crea nuovi watcher!)
+  if (window.mapFollowInterval) clearInterval(window.mapFollowInterval);
+  window.mapFollowInterval = setInterval(update, 2000);
 }
 
 
 
-
 function closeDetail() {
-  if (window.userWatchId) {
-    navigator.geolocation.clearWatch(window.userWatchId);
-    window.userWatchId = null;
-  }
-
-
   if (detailEl) {
 
     detailEl.classList.remove('open');
@@ -588,22 +636,25 @@ async function runStartup() {
 
   try {
     status('Starting camera…');
+    const COUNTDOWN_MS = 10000; // tempo del countdown in ms (5 secondi)
+
     const camPromise = startCamera();
-    const cdPromise = startCountdown(3000);
-    await Promise.all([camPromise, cdPromise]);
+    const cdPromise = startCountdown(COUNTDOWN_MS);
+    const geoPromise = getUserPosition(COUNTDOWN_MS);
+
+    // aspetta che finiscano contemporaneamente camera, countdown e posizione
+    await Promise.all([camPromise, cdPromise, geoPromise]);
     hideActivate();
 
     if (hudEl) hudEl.classList.add('hidden');
     running = true;
     startLoop();
 
-    status('Ottenendo la posizione utente…');
-    try {
-      await getUserPosition();
-      window.userCoords = userCoords; // 👈 serve per usarla in render.js
-    } catch (e) {
-      console.warn('Posizione non disponibile:', e);
-      userCoords = null;
+    // salva la posizione se buona
+    if (userCoords) {
+      console.log("✅ Posizione utente valida:", userCoords);
+    } else {
+      console.warn("⚠️ Posizione non precisa o non disponibile");
     }
 
     try {
@@ -746,6 +797,9 @@ function stopAll() {
     for (const track of stream.getTracks?.() || []) track.stop();
     stream = null;
   }
+
+  // 👉 Ferma anche il tracciamento GPS
+  stopUserTracking();
 }
 
 // Tip: For local development, serve over HTTPS (or localhost) for camera permissions.
