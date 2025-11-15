@@ -10,7 +10,7 @@ let userCoords = null;
 window.userCoords = userCoords;
 let userMarkerFeature = null;
 
-async function getUserPosition(countdownMs = 10000) {
+async function getUserPosition(countdownMs = 15000) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject("Geolocation non supportata");
@@ -63,6 +63,10 @@ async function getUserPosition(countdownMs = 10000) {
         permissionDenied = true;
         resolved = true;
         console.warn("🚫 Permesso posizione negato");
+
+        window.userCoords = null;
+        userCoords = null;
+
         resolve(null);
       }
     }
@@ -87,6 +91,10 @@ async function getUserPosition(countdownMs = 10000) {
         } else {
           // nessuna posizione abbastanza precisa → ritorna null
           console.log("❌ Nessuna posizione precisa trovata");
+
+          window.userCoords = null;
+          userCoords = null;
+
           resolve(null);
         }
       }
@@ -595,12 +603,16 @@ async function runStartup() {
   if (running || stream) return;
   if (startBtn) startBtn.disabled = true;
 
+  window.userCoords = null;
+  userCoords = null;
+
+
   // Activation overlay elements (present only on scanner page)
   const activate = document.getElementById('activate');
   const cnt = document.getElementById('activateCountdown');
   const bar = document.getElementById('activateBar');
 
-  function startCountdown(ms = 10000) {
+  function startCountdown(ms = 15000) {
     if (!activate) return Promise.resolve();
     activate.classList.remove('hidden');
     const totalSteps = Math.max(1, Math.ceil(ms / 1000)); // e.g., 3s -> 3 steps
@@ -647,7 +659,7 @@ async function runStartup() {
     console.time("⏱️ runStartup total time");
 
     status('Starting camera…');
-    const COUNTDOWN_MS = 10000; // tempo del countdown in ms (10 secondi)
+    const COUNTDOWN_MS = 15000; // tempo del countdown in ms (15 secondi)
 
     // 📷 CAMERA
     console.time("📷 startCamera()");
