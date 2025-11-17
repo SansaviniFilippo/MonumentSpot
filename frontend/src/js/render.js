@@ -330,11 +330,6 @@ function findBestMatch(embedding) {
   if (!monumentDB.length || !embedding || typeof embedding.length !== 'number')
     return null;
 
-  console.log("━━━━━━━━━━━━━━━━━━");
-  console.log("🔍 FIND BEST MATCH");
-  console.log("Embedding dim:", embedding.length);
-  console.log("User coords:", window.userCoords);
-
   // --- FILTRO GEOLOCALIZZATO ---
   const RADIUS_KM = 0.3; // 300 metri
   const user = window.userCoords;
@@ -359,8 +354,6 @@ function findBestMatch(embedding) {
     return null;
   }
 
-  console.log(`📚 Monumenti candidati: ${candidates.length}`);
-
   // --- MATCHING ---
   const dim = embedding.length;
   let bestIdx = -1;
@@ -372,21 +365,12 @@ function findBestMatch(embedding) {
     const vec = e.embedding;
 
     if (!vec || vec.length !== dim) {
-      console.warn(`  ❌ Skip ${e.name} (dim errata)`);
       continue;
     }
 
     // cosine similarity
     let s = 0.0;
     for (let j = 0; j < dim; j++) s += embedding[j] * vec[j];
-
-    // calcolo norma per debug
-    let normDB = Math.sqrt(vec.reduce((acc, x) => acc + x*x, 0));
-    let normEmbed = Math.sqrt(embedding.reduce((acc, x) => acc + x*x, 0));
-
-    console.log(
-      `  • ${e.name} (id=${e.id}) → sim=${s.toFixed(4)}, normDB=${normDB.toFixed(4)}, normIn=${normEmbed.toFixed(4)}`
-    );
 
     if (s > bestSim) {
       bestSim = s;
@@ -395,16 +379,10 @@ function findBestMatch(embedding) {
   }
 
   if (bestIdx < 0) {
-    console.log("❌ Nessuna similarità valida");
     return null;
   }
 
   const entry = candidates[bestIdx];
-
-  console.log("🏆 Best match:");
-  console.log(`    → ${entry.name} (id=${entry.id})`);
-  console.log(`    → similarity = ${bestSim.toFixed(4)}`);
-  console.log("━━━━━━━━━━━━━━━━━━");
 
   return { entry, confidence: bestSim };
 }
